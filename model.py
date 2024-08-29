@@ -33,9 +33,18 @@ class Cachable:
 
             df = self._compute()
             self._df = df
-            df.to_csv(cache_file)
+            self.save()
+            # df.to_csv(cache_file)
 
         self.initialize()
+
+    def save(self):
+        base_dir = Configuration().get_base_dir()
+        cache_dir = base_dir / "cache" / self.xp_name
+        cache_file = cache_dir / f"{self.result_id}.csv"
+
+        self._df.to_csv(cache_file)
+
 
     @property
     @abstractmethod
@@ -179,7 +188,8 @@ class Experiment(Cachable):
         ]
 
         dtype = {
-            'rfid': str
+            'rfid': str,
+            'error': str
         }
 
         df = pd.read_csv(csv_file, dtype=dtype, sep=";", names=cols, header=None)
@@ -268,7 +278,7 @@ class MiceOccupation(Cachable):
 
         df = self.experiment.df
 
-        transitions_df = df[df['action'] == 'transition'].reset_index(drop=True)
+        transitions_df = df[df['action'] == 'transition'] #.reset_index(drop=True)
 
         mice = dict.fromkeys(transitions_df.rfid.unique(), "BLACK_BOX")
 
@@ -302,6 +312,9 @@ class MiceOccupation(Cachable):
             res_occup_list.append(row_occup_dict)
 
         df_occupation = pd.DataFrame(res_occup_list)
+
+        # df of experimentation has been modified, need to save the new datas
+        self.experiment.save()
 
         return df_occupation
 

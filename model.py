@@ -1,6 +1,8 @@
 import datetime
 from abc import abstractmethod
 from datetime import timedelta
+from pathlib import Path
+from shutil import rmtree
 from typing import List, Dict
 
 from common_log import create_logger
@@ -56,9 +58,19 @@ class Cachable:
     def initialize(self):
         pass
 
+    @staticmethod
+    def delete_cache(xp_name: str):
+        base_dir = Configuration().get_base_dir()
+        cache_dir = base_dir / "cache" / xp_name
+
+        rmtree(cache_dir)
+
+
+
+
 class TransitionResolver:
 
-    def __init__(self, experiment: 'ExperimentNew'):
+    def __init__(self, experiment: 'Experiment'):
         self.logger = create_logger(self)
         self.experiment = experiment
 
@@ -102,19 +114,22 @@ class TransitionResolver:
                 break
 
 
-class ExperimentNew(Cachable):
+class Experiment(Cachable):
 
 
     def __init__(self, xp_name: str):
         super().__init__()
         self._xp_name = xp_name
 
-        self.mice_occupation: MiceOccupationNew = None
+        self.mice_occupation: MiceOccupation = None
 
     @staticmethod
-    def load(xp_name: str) -> 'ExperimentNew':
+    def load(xp_name: str, delete_cache: bool = False) -> 'Experiment':
 
-        res = ExperimentNew(xp_name=xp_name)
+        if delete_cache:
+            Cachable.delete_cache(xp_name)
+
+        res = Experiment(xp_name=xp_name)
         res.compute()
 
         return res
@@ -204,7 +219,7 @@ class ExperimentNew(Cachable):
         self.df.sort_values(by='time')
         self.df['time'] = pd.to_datetime(self.df['time'])
 
-        mo = MiceOccupationNew(experiment=self)
+        mo = MiceOccupation(experiment=self)
         mo.compute()
         self.mice_occupation = mo
 
@@ -238,9 +253,9 @@ class ExperimentNew(Cachable):
         }
 
 
-class MiceOccupationNew(Cachable):
+class MiceOccupation(Cachable):
 
-    def __init__(self, experiment: ExperimentNew):
+    def __init__(self, experiment: Experiment):
 
         super().__init__()
         self.experiment = experiment

@@ -20,7 +20,7 @@ class TestModel(unittest.TestCase):
 
     def test_load_experiment_XP6(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Experiment.load(xp_name="XP6", delete_cache=False)
+        xp = Experiment.load(xp_name="XP11", delete_cache=False)
 
         print("OK")
 

@@ -20,7 +20,7 @@ class Cachable:
         self.logger = create_logger(self)
         self._df: pd.DataFrame = None
 
-    def compute(self):
+    def compute(self, force_recompute: bool = False):
 
         base_dir = Configuration().get_base_dir()
         cache_dir = base_dir / "cache" / self.xp_name
@@ -29,7 +29,7 @@ class Cachable:
         if not cache_dir.exists():
             cache_dir.mkdir(parents=True)
 
-        if cache_file.exists():
+        if cache_file.exists() and not force_recompute:
             df = pd.read_csv(cache_file, dtype=self.dtype, index_col=0)
             self._df = df
         else:
@@ -248,11 +248,12 @@ class Experiment(Cachable):
         mo.compute()
         self.mice_occupation = mo
 
+        self.validate()
+
         ms = MiceSequence(experiment=self)
         ms.compute()
         self.mice_sequence = ms
 
-        self.validate()
 
     def validate(self) -> bool:
 
@@ -285,7 +286,11 @@ class Experiment(Cachable):
 
             self.df.sort_values(by='time', inplace=True, ignore_index=True)
 
+            # save after corrections
             self.save()
+
+            # recompute mice occupation
+            self.mice_occupation.compute(force_recompute=True)
 
             return False
 
@@ -317,8 +322,9 @@ class MiceOccupation(Cachable):
         mice = dict.fromkeys(transitions_df.rfid.unique(), "BLACK_BOX")
 
         res_occup_list: List = list()
-
+        row_num = 0
         for idx, row in transitions_df.iterrows():
+
             rfid = row.rfid
             from_loc = row.from_loc
             to_loc = row.to_loc
@@ -336,11 +342,13 @@ class MiceOccupation(Cachable):
 
             # compute duration with next row
 
-            if (idx+1) < len(transitions_df):
-                next_row_time = transitions_df.iloc[idx+1].time
+            if (row_num+1) < len(transitions_df):
+                next_row_time = transitions_df.iloc[row_num+1].time
                 duration = (next_row_time - row.time).total_seconds()
             else:
                 duration = 0
+
+            row_num += 1
 
             row_occup_dict = {'time': row.time, 'day_since_start': row.day_since_start, 'duration': duration, **mice}
             res_occup_list.append(row_occup_dict)

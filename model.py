@@ -211,6 +211,8 @@ class Experiment(Cachable):
 
         date_format = '%d-%m-%Y %H:%M:%S'
         df['time'] = pd.to_datetime(df['time'], format=date_format)
+        self.df.sort_values(by='time', inplace=True)
+
         self._add_days(df)
 
         return df

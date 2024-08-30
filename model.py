@@ -1,10 +1,13 @@
 import datetime
+import os
 from abc import abstractmethod
 from datetime import timedelta
+from io import StringIO
 from pathlib import Path
 from shutil import rmtree
 from typing import List, Dict
 
+from common import FileMerger
 from common_log import create_logger
 from configuration import Configuration
 
@@ -120,8 +123,13 @@ class TransitionResolver:
             if next_trans_row.error == "ERROR":
 
                 self.logger.error(f"At time {time} mouse {error_row.rfid} is swapped with mouse {next_trans_row.rfid}")
+                self.experiment.df.loc[error_row.name, 'rfid'] = next_trans_row.rfid
+                self.experiment.df.loc[error_row.name, 'error'] = "SWAP"
+                self.experiment.df.loc[next_trans_row.name, 'error'] = "SWAP"
                 break
 
+
+        # print("ENDED")
 
 class Experiment(Cachable):
 
@@ -171,9 +179,13 @@ class Experiment(Cachable):
 
     def _compute(self) -> pd.DataFrame:
 
-        base_dir = Configuration().get_base_dir() / self.xp_name
+        base_dir = Configuration().get_base_dir()
+        data_dir = base_dir / "data" / self.xp_name
 
-        csv_file = list(base_dir.glob("*.csv"))[0]
+        csv_file = list(data_dir.glob("*.csv"))
+        csv_file.sort(key=os.path.getmtime)
+        file_merger = FileMerger(csv_file)
+        csv_str = file_merger.merge()
 
         cols = [
             'action',
@@ -193,7 +205,9 @@ class Experiment(Cachable):
             'error': str
         }
 
-        df = pd.read_csv(csv_file, dtype=dtype, sep=";", names=cols, header=None)
+        # df = pd.read_csv(csv_file, dtype=dtype, sep=";", names=cols, header=None)
+        df = pd.read_csv(StringIO(csv_str), dtype=dtype, sep=";", names=cols, header=None)
+
 
         date_format = '%d-%m-%Y %H:%M:%S'
         df['time'] = pd.to_datetime(df['time'], format=date_format)
@@ -227,7 +241,7 @@ class Experiment(Cachable):
     def initialize(self):
 
         # sort by time
-        self.df.sort_values(by='time')
+        self.df.sort_values(by='time', inplace=True)
         self.df['time'] = pd.to_datetime(self.df['time'])
 
         mo = MiceOccupation(experiment=self)
@@ -247,16 +261,31 @@ class Experiment(Cachable):
         if df.empty:
             return True
         else:
-            self.logger.error(f"{len(df)} transition errors found")
-            for row in df.itertuples():
-                prev_loc = self.mice_occupation.get_mouse_location(time=row.time, mouse=row.rfid, just_before=True)
-                self.logger.error(f"RFID {row.rfid} date:{row.time} from:{row.from_loc} to:{row.to_loc} previously:{prev_loc}")
-
             resolver = TransitionResolver(self)
             for row in df.itertuples():
                 time = row.time
                 resolver.resolve(time)
 
+            # df could have changed after resolve
+            df = self.transitions_error()
+
+            self.logger.error(f"{len(df)} transition errors found")
+            for index, row in df.iterrows():
+                prev_loc = self.mice_occupation.get_mouse_location(time=row.time, mouse=row.rfid, just_before=True)
+
+                self.df.loc[index, 'error'] = ''
+                new_row = row.copy()
+                new_row.device = 'correction'
+                new_row.from_loc = row.to_loc
+                new_row.to_loc = row.from_loc
+                new_row.error = 'CORRECTED'
+
+                self.df.loc[len(self.df)] = new_row
+                self.logger.error(f"RFID {row.rfid} date:{row.time} from:{row.from_loc} to:{row.to_loc} previously:{prev_loc}")
+
+            self.df.sort_values(by='time', inplace=True, ignore_index=True)
+
+            self.save()
 
             return False
 

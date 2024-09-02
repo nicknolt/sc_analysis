@@ -4,22 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1504f900-db3d-44a3-88ea-18115dabf353" name="Changes" comment="ajout de mice sequence">
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/common.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/resources/data/XP6/10_18_16_59_17.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/resources/data/XP6/10_18_17_18_18.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/resources/data/XP6/10_19_13_44_43.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/resources/data/XP6/10_23_18_53_25.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/resources/data/XP6/10_31_13_17_39.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/SC_Analysis.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/SC_Analysis.iml" afterDir="false" />
+    <list default="true" id="1504f900-db3d-44a3-88ea-18115dabf353" name="Changes" comment="AJOUT .idea et code occupation">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/model.py" beforeDir="false" afterPath="$PROJECT_DIR$/model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/resources/XP8/1_10_17_37_56.csv" beforeDir="false" afterPath="$PROJECT_DIR$/tests/resources/data/XP8/1_10_17_37_56.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/resources/XP9/2_21_15_45_31.csv" beforeDir="false" afterPath="$PROJECT_DIR$/tests/resources/data/XP9/2_21_15_45_31.csv" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/test_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_model.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -62,15 +49,17 @@
   "keyToString": {
     "Python tests.Python tests for test_model.TestModel.test_FileMerger.executor": "Debug",
     "Python tests.Python tests for test_model.TestModel.test_load_experiment.executor": "Run",
-    "Python tests.Python tests for test_model.TestModel.test_load_experiment_XP6.executor": "Debug",
+    "Python tests.Python tests for test_model.TestModel.test_load_experiment_XP6.executor": "Run",
+    "Python tests.Python tests for test_model.TestModel.test_mice_occupation_in_LMT.executor": "Debug",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "git-widget-placeholder": "master",
-    "last_opened_file_path": "C:/Users/Nicolas/PycharmProjects/SC_Analysis/tests/resources",
+    "last_opened_file_path": "C:/Users/Nicolas/PycharmProjects/SC_Analysis/tests/resources/data",
     "settings.editor.selected.configurable": "preferences.pluginManager"
   }
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Nicolas\PycharmProjects\SC_Analysis\tests\resources\data" />
       <recent name="C:\Users\Nicolas\PycharmProjects\SC_Analysis\tests\resources" />
       <recent name="C:\Users\Nicolas\PycharmProjects\SC_Analysis\tests\resources\XP8" />
       <recent name="C:\Users\Nicolas\PycharmProjects\SC_Analysis\tests" />
@@ -80,7 +69,7 @@
       <recent name="C:\Users\Nicolas\PycharmProjects\SC_Analysis\tests\resources\data" />
     </key>
   </component>
-  <component name="RunManager" selected="Python tests.Python tests for test_model.TestModel.test_load_experiment">
+  <component name="RunManager" selected="Python tests.Python tests for test_model.TestModel.test_load_experiment_XP6">
     <configuration name="Python tests for test_model.TestModel.test_FileMerger" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
       <module name="SC_Analysis" />
       <option name="ENV_FILES" value="" />
@@ -126,10 +115,26 @@
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
+    <configuration name="Python tests for test_model.TestModel.test_mice_occupation_in_LMT" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="SC_Analysis" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;test_model.TestModel.test_mice_occupation_in_LMT&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python tests.Python tests for test_model.TestModel.test_load_experiment" />
         <item itemvalue="Python tests.Python tests for test_model.TestModel.test_load_experiment_XP6" />
+        <item itemvalue="Python tests.Python tests for test_model.TestModel.test_mice_occupation_in_LMT" />
+        <item itemvalue="Python tests.Python tests for test_model.TestModel.test_load_experiment" />
         <item itemvalue="Python tests.Python tests for test_model.TestModel.test_FileMerger" />
       </list>
     </recent_temporary>
@@ -182,7 +187,47 @@
       <option name="project" value="LOCAL" />
       <updated>1724943263045</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="autocorrection">
+      <option name="closed" value="true" />
+      <created>1725029246692</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1725029246692</updated>
+    </task>
+    <task id="LOCAL-00006" summary="autocorrection">
+      <option name="closed" value="true" />
+      <created>1725029315383</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1725029315383</updated>
+    </task>
+    <task id="LOCAL-00007" summary="recalcul de mice occupatopn et correction sur duration">
+      <option name="closed" value="true" />
+      <created>1725034176720</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1725034176720</updated>
+    </task>
+    <task id="LOCAL-00008" summary="ajout XP11 et correction date debut xp">
+      <option name="closed" value="true" />
+      <created>1725036271922</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1725036271922</updated>
+    </task>
+    <task id="LOCAL-00009" summary="AJOUT .idea et code occupation">
+      <option name="closed" value="true" />
+      <created>1725285965609</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1725285965609</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -190,22 +235,52 @@
     <MESSAGE value="delete_cache added" />
     <MESSAGE value="experiment df is saved after modification by mice_occupation" />
     <MESSAGE value="ajout de mice sequence" />
-    <option name="LAST_COMMIT_MESSAGE" value="ajout de mice sequence" />
+    <MESSAGE value="autocorrection" />
+    <MESSAGE value="recalcul de mice occupatopn et correction sur duration" />
+    <MESSAGE value="ajout XP11 et correction date debut xp" />
+    <MESSAGE value="AJOUT .idea et code occupation" />
+    <option name="LAST_COMMIT_MESSAGE" value="AJOUT .idea et code occupation" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tests/test_model.py</url>
-          <line>37</line>
+          <line>84</line>
           <option name="timeStamp" value="6" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tests/test_model.py</url>
-          <line>24</line>
+          <line>26</line>
           <option name="timeStamp" value="7" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/model.py</url>
+          <line>419</line>
+          <option name="timeStamp" value="34" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tests/test_model.py</url>
+          <line>57</line>
+          <option name="timeStamp" value="35" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tests/test_model.py</url>
+          <line>45</line>
+          <option name="timeStamp" value="36" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/model.py</url>
+          <line>413</line>
+          <option name="timeStamp" value="37" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
+    <watches-manager>
+      <configuration name="tests">
+        <watch expression="duration" />
+        <watch expression="row.duration" />
+      </configuration>
+    </watches-manager>
   </component>
 </project>

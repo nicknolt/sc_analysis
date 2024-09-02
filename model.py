@@ -211,7 +211,7 @@ class Experiment(Cachable):
 
         date_format = '%d-%m-%Y %H:%M:%S'
         df['time'] = pd.to_datetime(df['time'], format=date_format)
-        self.df.sort_values(by='time', inplace=True)
+        df.sort_values(by='time', inplace=True)
 
         self._add_days(df)
 
@@ -417,7 +417,7 @@ class MiceSequence(Cachable):
 
             elif row.action == "nose_poke" and mouse_id:
 
-                if row.rfid == mouse_id and lever_pressed_time:
+                if row.rfid == mouse_id :
 
                     elapsed_time: float = (row.time - lever_pressed_time).total_seconds()
                     res_cycle = {

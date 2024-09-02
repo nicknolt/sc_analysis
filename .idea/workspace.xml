@@ -4,10 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1504f900-db3d-44a3-88ea-18115dabf353" name="Changes" comment="AJOUT .idea et code occupation">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model.py" beforeDir="false" afterPath="$PROJECT_DIR$/model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_model.py" afterDir="false" />
+    <list default="true" id="1504f900-db3d-44a3-88ea-18115dabf353" name="Changes" comment="rename mice_occupation by mice_location and create mice_occupation">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -49,7 +47,7 @@
   "keyToString": {
     "Python tests.Python tests for test_model.TestModel.test_FileMerger.executor": "Debug",
     "Python tests.Python tests for test_model.TestModel.test_load_experiment.executor": "Run",
-    "Python tests.Python tests for test_model.TestModel.test_load_experiment_XP6.executor": "Run",
+    "Python tests.Python tests for test_model.TestModel.test_load_experiment_XP6.executor": "Debug",
     "Python tests.Python tests for test_model.TestModel.test_mice_occupation_in_LMT.executor": "Debug",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "git-widget-placeholder": "master",
@@ -227,7 +225,15 @@
       <option name="project" value="LOCAL" />
       <updated>1725285965609</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="rename mice_occupation by mice_location and create mice_occupation">
+      <option name="closed" value="true" />
+      <created>1725294012513</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1725294012513</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -239,19 +245,20 @@
     <MESSAGE value="recalcul de mice occupatopn et correction sur duration" />
     <MESSAGE value="ajout XP11 et correction date debut xp" />
     <MESSAGE value="AJOUT .idea et code occupation" />
-    <option name="LAST_COMMIT_MESSAGE" value="AJOUT .idea et code occupation" />
+    <MESSAGE value="rename mice_occupation by mice_location and create mice_occupation" />
+    <option name="LAST_COMMIT_MESSAGE" value="rename mice_occupation by mice_location and create mice_occupation" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tests/test_model.py</url>
-          <line>84</line>
+          <line>85</line>
           <option name="timeStamp" value="6" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tests/test_model.py</url>
-          <line>26</line>
+          <line>27</line>
           <option name="timeStamp" value="7" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
@@ -261,12 +268,12 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tests/test_model.py</url>
-          <line>57</line>
+          <line>58</line>
           <option name="timeStamp" value="35" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tests/test_model.py</url>
-          <line>45</line>
+          <line>46</line>
           <option name="timeStamp" value="36" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">

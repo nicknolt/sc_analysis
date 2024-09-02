@@ -87,7 +87,7 @@ class TransitionResolver:
         self.experiment = experiment
 
         self._trans_df = experiment.transitions()
-        self._mice_occupation = experiment.mice_occupation
+        self._mice_occupation = experiment.mice_location
 
     def resolve(self, time: datetime.datetime):
 
@@ -138,7 +138,7 @@ class Experiment(Cachable):
         super().__init__()
         self._xp_name = xp_name
 
-        self.mice_occupation: MiceOccupation = None
+        self.mice_location: MiceLocation = None
         self.mice_sequence: MiceSequence = None
 
     @staticmethod
@@ -246,9 +246,9 @@ class Experiment(Cachable):
         self.df.sort_values(by='time', inplace=True)
         self.df['time'] = pd.to_datetime(self.df['time'])
 
-        mo = MiceOccupation(experiment=self)
+        mo = MiceLocation(experiment=self)
         mo.compute()
-        self.mice_occupation = mo
+        self.mice_location = mo
 
         self.validate()
 
@@ -274,7 +274,7 @@ class Experiment(Cachable):
 
             self.logger.error(f"{len(df)} transition errors found")
             for index, row in df.iterrows():
-                prev_loc = self.mice_occupation.get_mouse_location(time=row.time, mouse=row.rfid, just_before=True)
+                prev_loc = self.mice_location.get_mouse_location(time=row.time, mouse=row.rfid, just_before=True)
 
                 self.df.loc[index, 'error'] = ''
                 new_row = row.copy()
@@ -292,7 +292,7 @@ class Experiment(Cachable):
             self.save()
 
             # recompute mice occupation
-            self.mice_occupation.compute(force_recompute=True)
+            self.mice_location.compute(force_recompute=True)
 
             return False
 
@@ -304,16 +304,18 @@ class Experiment(Cachable):
         }
 
 
-class MiceOccupation(Cachable):
+class MiceLocation(Cachable):
 
     def __init__(self, experiment: Experiment):
 
         super().__init__()
         self.experiment = experiment
+        self.mice_occupation: MiceOccupation = None
 
     @property
     def result_id(self) -> str:
-        return f"{self.xp_name}_occupation"
+        return f"{self.xp_name}_location"
+
 
     def _compute(self) -> pd.DataFrame:
 
@@ -369,6 +371,11 @@ class MiceOccupation(Cachable):
     def initialize(self):
         self._df['time'] = pd.to_datetime(self._df['time'])
 
+        mice_occupation = MiceOccupation(mice_location=self)
+        mice_occupation.compute()
+
+        self.mice_occupation = mice_occupation
+
     def get_mouse_location(self, time: datetime, mouse: str, just_before: bool = False) -> str:
 
         num_tail = 1
@@ -389,6 +396,57 @@ class MiceOccupation(Cachable):
         res = df.loc[df['time'] <= time].tail(1).to_dict(orient='records')[0]
 
         return res
+
+class MiceOccupation(Cachable):
+
+    def __init__(self, mice_location: MiceLocation):
+        super().__init__()
+
+        self.mice_location = mice_location
+
+    @property
+    def result_id(self) -> str:
+        return f"{self.xp_name}_occupation_LMT"
+
+    def _compute(self) -> pd.DataFrame:
+
+        df = self.mice_location._df
+        mice = list(df.columns[3:])
+
+        res_per_day: Dict[int, Dict[str, float]] = dict()
+
+        for day, day_data in df.groupby('day_since_start'):
+
+            res_comb: Dict[str, float] = dict()
+            for index, row in day_data.iterrows():
+                mice_in_lmt = [x for x in mice if row[x] == "LMT"]
+                mice_key = ','.join(mice_in_lmt)
+
+                if mice_key not in res_comb:
+                    res_comb[mice_key] = row.duration
+                else:
+                    res_comb[mice_key] += row.duration
+
+            res_per_day[day] = res_comb
+
+        # refactor dictionary
+        final_res = list()
+
+        for day, values in res_per_day.items():
+            for mice_comb, duration in values.items():
+                final_res.append({
+                    'mice_comb': mice_comb,
+                    'duration': duration,
+                    'day_since_start': day
+                })
+
+        df = pd.DataFrame(final_res)
+
+        return df
+
+    @property
+    def xp_name(self) -> str:
+        return self.mice_location.xp_name
 
 class MiceSequence(Cachable):
 

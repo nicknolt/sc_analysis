@@ -4,9 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1504f900-db3d-44a3-88ea-18115dabf353" name="Changes" comment="ajout XP11 et correction date debut xp">
+    <list default="true" id="1504f900-db3d-44a3-88ea-18115dabf353" name="Changes" comment="AJOUT .idea et code occupation">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/model.py" beforeDir="false" afterPath="$PROJECT_DIR$/model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_model.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -44,17 +45,18 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python tests.Python tests for test_model.TestModel.test_FileMerger.executor&quot;: &quot;Debug&quot;,
-    &quot;Python tests.Python tests for test_model.TestModel.test_load_experiment.executor&quot;: &quot;Run&quot;,
-    &quot;Python tests.Python tests for test_model.TestModel.test_load_experiment_XP6.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/Nicolas/PycharmProjects/SC_Analysis/tests/resources/data&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python tests.Python tests for test_model.TestModel.test_FileMerger.executor": "Debug",
+    "Python tests.Python tests for test_model.TestModel.test_load_experiment.executor": "Run",
+    "Python tests.Python tests for test_model.TestModel.test_load_experiment_XP6.executor": "Run",
+    "Python tests.Python tests for test_model.TestModel.test_mice_occupation_in_LMT.executor": "Debug",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "master",
+    "last_opened_file_path": "C:/Users/Nicolas/PycharmProjects/SC_Analysis/tests/resources/data",
+    "settings.editor.selected.configurable": "preferences.pluginManager"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\Nicolas\PycharmProjects\SC_Analysis\tests\resources\data" />
@@ -113,9 +115,25 @@
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
+    <configuration name="Python tests for test_model.TestModel.test_mice_occupation_in_LMT" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="SC_Analysis" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;test_model.TestModel.test_mice_occupation_in_LMT&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
         <item itemvalue="Python tests.Python tests for test_model.TestModel.test_load_experiment_XP6" />
+        <item itemvalue="Python tests.Python tests for test_model.TestModel.test_mice_occupation_in_LMT" />
         <item itemvalue="Python tests.Python tests for test_model.TestModel.test_load_experiment" />
         <item itemvalue="Python tests.Python tests for test_model.TestModel.test_FileMerger" />
       </list>
@@ -201,7 +219,15 @@
       <option name="project" value="LOCAL" />
       <updated>1725036271922</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="AJOUT .idea et code occupation">
+      <option name="closed" value="true" />
+      <created>1725285965609</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1725285965609</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -212,32 +238,49 @@
     <MESSAGE value="autocorrection" />
     <MESSAGE value="recalcul de mice occupatopn et correction sur duration" />
     <MESSAGE value="ajout XP11 et correction date debut xp" />
-    <option name="LAST_COMMIT_MESSAGE" value="ajout XP11 et correction date debut xp" />
+    <MESSAGE value="AJOUT .idea et code occupation" />
+    <option name="LAST_COMMIT_MESSAGE" value="AJOUT .idea et code occupation" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tests/test_model.py</url>
-          <line>37</line>
+          <line>84</line>
           <option name="timeStamp" value="6" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tests/test_model.py</url>
-          <line>24</line>
+          <line>26</line>
           <option name="timeStamp" value="7" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/model.py</url>
-          <line>252</line>
-          <option name="timeStamp" value="23" />
+          <line>419</line>
+          <option name="timeStamp" value="34" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tests/test_model.py</url>
+          <line>57</line>
+          <option name="timeStamp" value="35" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tests/test_model.py</url>
+          <line>45</line>
+          <option name="timeStamp" value="36" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/model.py</url>
-          <line>347</line>
-          <option name="timeStamp" value="26" />
+          <line>413</line>
+          <option name="timeStamp" value="37" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
+    <watches-manager>
+      <configuration name="tests">
+        <watch expression="duration" />
+        <watch expression="row.duration" />
+      </configuration>
+    </watches-manager>
   </component>
 </project>

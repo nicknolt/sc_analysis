@@ -46,7 +46,7 @@ class TestModel(unittest.TestCase):
             tmp_df['mouse'] = mouse
             to_concat.append(tmp_df)
 
-        merged = pd.concat(to_concat)
+        merged = pd.concat(to_concat).sort_values(['day_since_start', 'mouse'])
 
 
 

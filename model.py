@@ -418,6 +418,7 @@ class MiceOccupation(Cachable):
     def dtype(self) -> Dict:
         return {
             'mice_comb': 'string',
+            'duration': int
         }
 
     @property

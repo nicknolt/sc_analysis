@@ -10,7 +10,7 @@ from typing import List, Dict
 from common import FileMerger
 from common_log import create_logger
 from configuration import Configuration
-
+import numpy as np
 
 import pandas as pd
 
@@ -138,6 +138,7 @@ class Experiment(Cachable):
         super().__init__()
         self._xp_name = xp_name
 
+        self.mice: List[str] = None
         self.mice_location: MiceLocation = None
         self.mice_sequence: MiceSequence = None
 
@@ -241,6 +242,12 @@ class Experiment(Cachable):
         return self._xp_name
 
     def initialize(self):
+
+        # extract mice ids
+        id_mice: set = set(self._df.rfid.unique())
+
+        id_mice = id_mice - {np.nan, '0', 'na'}
+        self.mice = id_mice
 
         # sort by time
         self.df.sort_values(by='time', inplace=True)
@@ -404,6 +411,15 @@ class MiceOccupation(Cachable):
 
         self.mice_location = mice_location
 
+    # def initialize(self):
+    #     self._df['mice_comb'] = self._df['mice_comb'].astype(str)
+
+    @property
+    def dtype(self) -> Dict:
+        return {
+            'mice_comb': 'string',
+        }
+
     @property
     def result_id(self) -> str:
         return f"{self.xp_name}_occupation_LMT"
@@ -420,7 +436,7 @@ class MiceOccupation(Cachable):
             res_comb: Dict[str, float] = dict()
             for index, row in day_data.iterrows():
                 mice_in_lmt = [x for x in mice if row[x] == "LMT"]
-                mice_key = ','.join(mice_in_lmt)
+                mice_key = '|'.join(mice_in_lmt)
 
                 if mice_key not in res_comb:
                     res_comb[mice_key] = row.duration
@@ -435,7 +451,7 @@ class MiceOccupation(Cachable):
         for day, values in res_per_day.items():
             for mice_comb, duration in values.items():
                 final_res.append({
-                    'mice_comb': mice_comb,
+                    'mice_comb': str(mice_comb),
                     'duration': duration,
                     'day_since_start': day
                 })

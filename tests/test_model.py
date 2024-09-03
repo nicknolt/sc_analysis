@@ -35,11 +35,12 @@ class TestModel(unittest.TestCase):
 
         df = tutu._df
 
-        df['nb_mice'] = df.apply(lambda x: 0 if pd.isna(x['mice_comb']) else len(x['mice_comb'].split('|')), axis=1)
+        df['mice_comb'] = df['mice_comb'].fillna('EMPTY')
+        df['nb_mice'] = df.apply(lambda x: 0 if x['mice_comb'] == 'EMPTY' else len(x['mice_comb'].split('|')), axis=1)
 
         to_concat: List[pd.DataFrame] = list()
 
-        for mouse in xp.mice:
+        for mouse in [*xp.mice, 'EMPTY']:
             df_mouse = df[df['mice_comb'].str.contains(mouse)]
             tmp_df = df_mouse.groupby(['day_since_start', 'nb_mice'])['duration'].sum().reset_index()
             tmp_df['mouse'] = mouse

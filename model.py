@@ -485,7 +485,8 @@ class MiceSequence(Cachable):
 
     @property
     def result_id(self) -> str:
-        return f"{self.xp_name}_sequences"
+        max_delay = Configuration().max_delay_complete_sequence
+        return f"{self.xp_name}_{max_delay}_sequences"
 
     def _compute(self) -> pd.DataFrame:
 
@@ -533,45 +534,3 @@ class MiceSequence(Cachable):
     @property
     def xp_name(self) -> str:
         return self.experiment.xp_name
-
-# def __init__(self, mice_cycle: pd.DataFrame):
-    #     self.df: pd.DataFrame = mice_cycle
-    #
-    #
-    # @staticmethod
-    # def create_from_events(data_frame: pd.DataFrame) -> 'MiceCycle':
-    #
-    #     mouse_id: str = None
-    #     lever_pressed_time: datetime = None
-    #
-    #     res_global: List = list()
-    #
-    #     for row in data_frame.itertuples():
-    #
-    #         if row.action == "id_lever":
-    #
-    #             lever_pressed_time = row.time
-    #             mouse_id = row.rfid
-    #
-    #         elif row.action == "nose_poke" and mouse_id:
-    #
-    #             if row.rfid == mouse_id and lever_pressed_time:
-    #
-    #                 elapsed_time: float = (row.time - lever_pressed_time).total_seconds()
-    #                 res_cycle = {
-    #                     'lever_press_dt': lever_pressed_time,
-    #                     'rfid': mouse_id,
-    #                     'elapsed_s': elapsed_time,
-    #                     'valid_cycle': 'TRUE' if elapsed_time <= 3 else "FALSE",
-    #                     'day_since_start': row.day_since_start
-    #                 }
-    #
-    #                 res_global.append(res_cycle)
-    #
-    #                 mouse_id = None
-    #
-    #     res_df = pd.DataFrame(res_global)
-    #
-    #     return MiceCycle(mice_cycle=res_df)
-    #
-    #

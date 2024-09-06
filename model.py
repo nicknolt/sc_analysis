@@ -198,7 +198,8 @@ class Experiment(Cachable):
             'weight',
             'error',
             'direction',
-            'activate'
+            'activate',
+            'liquids'
         ]
 
         dtype = {
@@ -209,9 +210,15 @@ class Experiment(Cachable):
         # df = pd.read_csv(csv_file, dtype=dtype, sep=";", names=cols, header=None)
         df = pd.read_csv(StringIO(csv_str), dtype=dtype, sep=";", names=cols, header=None)
 
+        # format have changed btw experiment, we have to check the dateformat
+        old_date_format = '%d-%m-%Y %H:%M:%S'
 
-        date_format = '%d-%m-%Y %H:%M:%S'
-        df['time'] = pd.to_datetime(df['time'], format=date_format)
+        try:
+            date = pd.to_datetime(df['time'], format=old_date_format)
+        except ValueError as error:
+            date = pd.to_datetime(df['time'])
+
+        df['time'] = date
         df.sort_values(by='time', inplace=True)
 
         self._add_days(df)
@@ -437,7 +444,8 @@ class MiceOccupation(Cachable):
             res_comb: Dict[str, float] = dict()
             for index, row in day_data.iterrows():
                 mice_in_lmt = [x for x in mice if row[x] == "LMT"]
-                mice_key = '|'.join(mice_in_lmt)
+
+                mice_key = '|'.join(mice_in_lmt) if len(mice_in_lmt) else 'EMPTY'
 
                 if mice_key not in res_comb:
                     res_comb[mice_key] = row.duration
@@ -459,8 +467,6 @@ class MiceOccupation(Cachable):
 
         df = pd.DataFrame(final_res)
 
-        # replace empty mice_comb by EMPTY
-        df['mice_comb'] = df['mice_comb'].fillna('EMPTY')
         # add extra info, the number of mice in the LMT
         df['nb_mice'] = df.apply(lambda x: 0 if x['mice_comb'] == 'EMPTY' else len(x['mice_comb'].split('|')), axis=1)
 

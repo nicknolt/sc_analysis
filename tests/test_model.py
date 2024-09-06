@@ -1,3 +1,4 @@
+import datetime
 import os
 import unittest
 from pathlib import Path
@@ -15,6 +16,13 @@ class TestModel(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         basic_config_log()
+
+    # def test_iso_format(self):
+    #     date_str = "2024-09-06T16:32:14.723+02:00"
+    #
+    #     date = pd.to_datetime(date_str)
+    #
+    #     print(date)
 
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('./resources'))

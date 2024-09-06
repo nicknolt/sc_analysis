@@ -6,7 +6,7 @@ from typing import Dict, Set, List
 from common import FileMerger
 from common_log import basic_config_log
 from configuration import Configuration
-from model import Experiment
+from model import Experiment, MiceOccupation, MiceSequence
 
 import pandas as pd
 
@@ -27,6 +27,16 @@ class TestModel(unittest.TestCase):
         tutu = xp.mice_location.mice_occupation
         print("OK")
 
+    def test_compute_sequences(self):
+        config = Configuration(base_dir=Path('./resources'))
+        xp = Experiment.load(xp_name="XP11")
+
+        ms = MiceSequence(xp)
+        res = ms.compute(force_recompute=True)
+
+        print("ok")
+
+
     def test_occupation_time_each_mouse(self):
         config = Configuration(base_dir=Path('./resources'))
         xp = Experiment.load(xp_name="XP11")
@@ -34,9 +44,9 @@ class TestModel(unittest.TestCase):
         tutu = xp.mice_location.mice_occupation
 
         df = tutu._df
-
-        df['mice_comb'] = df['mice_comb'].fillna('EMPTY')
-        df['nb_mice'] = df.apply(lambda x: 0 if x['mice_comb'] == 'EMPTY' else len(x['mice_comb'].split('|')), axis=1)
+        #
+        # df['mice_comb'] = df['mice_comb'].fillna('EMPTY')
+        # df['nb_mice'] = df.apply(lambda x: 0 if x['mice_comb'] == 'EMPTY' else len(x['mice_comb'].split('|')), axis=1)
 
         to_concat: List[pd.DataFrame] = list()
 

@@ -12,8 +12,9 @@ class Singleton(type):
 
 class Configuration(metaclass=Singleton):
 
-    def __init__(self, base_dir: Path):
+    def __init__(self, base_dir: Path, max_delay_complete_sequence: int = 3):
         self._base_dir = base_dir
+        self.max_delay_complete_sequence: int = max_delay_complete_sequence
 
     def get_base_dir(self) -> Path:
         return self._base_dir

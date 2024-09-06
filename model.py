@@ -5,7 +5,7 @@ from datetime import timedelta
 from io import StringIO
 from pathlib import Path
 from shutil import rmtree
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from common import FileMerger
 from common_log import create_logger
@@ -459,6 +459,11 @@ class MiceOccupation(Cachable):
 
         df = pd.DataFrame(final_res)
 
+        # replace empty mice_comb by EMPTY
+        df['mice_comb'] = df['mice_comb'].fillna('EMPTY')
+        # add extra info, the number of mice in the LMT
+        df['nb_mice'] = df.apply(lambda x: 0 if x['mice_comb'] == 'EMPTY' else len(x['mice_comb'].split('|')), axis=1)
+
         return df
 
     @property
@@ -478,36 +483,44 @@ class MiceSequence(Cachable):
 
     def _compute(self) -> pd.DataFrame:
 
-        mouse_id: str = None
-        lever_pressed_time: datetime = None
-
         res_global: List = list()
 
-        for row in self.experiment.df.itertuples():
+        max_delay = Configuration().max_delay_complete_sequence
+
+        res_sequence: Dict = None
+
+        df = self.experiment.df
+        df = df[df['action'].str.contains('id_lever|nose_poke')]
+
+        for row in df.itertuples():
 
             if row.action == "id_lever":
 
-                lever_pressed_time = row.time
-                mouse_id = row.rfid
+                if res_sequence:
+                    res_sequence['rfid_np'] = ''
+                    res_global.append(res_sequence)
 
-            elif row.action == "nose_poke" and mouse_id:
+                res_sequence = dict()
 
-                if row.rfid == mouse_id :
+                res_sequence['lever_press_dt'] = row.time
+                res_sequence['rfid_lp'] = str(row.rfid)
+                res_sequence['day_since_start'] = row.day_since_start
 
-                    elapsed_time: float = (row.time - lever_pressed_time).total_seconds()
-                    res_cycle = {
-                        'lever_press_dt': lever_pressed_time,
-                        'rfid': mouse_id,
-                        'elapsed_s': elapsed_time,
-                        'valid_cycle': 'TRUE' if elapsed_time <= 3 else "FALSE",
-                        'day_since_start': row.day_since_start
-                    }
+            elif row.action == "nose_poke":
 
-                    res_global.append(res_cycle)
+                if not res_sequence:
+                    continue
 
-                    mouse_id = None
+                elapsed_time: float = (row.time - res_sequence['lever_press_dt']).total_seconds()
+                res_sequence['elapsed_s'] = elapsed_time
+                res_sequence['rfid_np'] = row.rfid
+
+                res_global.append(res_sequence)
+                res_sequence = None
 
         res_df = pd.DataFrame(res_global)
+
+        res_df['complete_sequence'] = res_df.apply(lambda row: (row.rfid_lp == row.rfid_np) and row.elapsed_s <= max_delay, axis=1)
 
         return res_df
 

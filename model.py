@@ -213,7 +213,7 @@ class Experiment(Cachable):
         try:
             date = pd.to_datetime(df['time'], format=old_date_format)
         except ValueError as error:
-            date = pd.to_datetime(df['time'])
+            date = pd.to_datetime(df['time'], format="ISO8601")
 
         df['time'] = date
         df.sort_values(by='time', inplace=True)
@@ -422,7 +422,7 @@ class MiceOccupation(Cachable):
     def dtype(self) -> Dict:
         return {
             'mice_comb': 'string',
-            'duration': int
+            'duration': 'float'
         }
 
     @property

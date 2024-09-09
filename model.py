@@ -143,10 +143,7 @@ class Experiment(Cachable):
         self.mice_sequence: MiceSequence = None
 
     @staticmethod
-    def load(xp_name: str, delete_cache: bool = False) -> 'Experiment':
-
-        if delete_cache:
-            Cachable.delete_cache(xp_name)
+    def load(xp_name: str) -> 'Experiment':
 
         res = Experiment(xp_name=xp_name)
         res.compute()
@@ -461,7 +458,7 @@ class MiceOccupation(Cachable):
             for mice_comb, duration in values.items():
                 final_res.append({
                     'mice_comb': str(mice_comb),
-                    'duration': duration,
+                    'duration': int(duration),
                     'day_since_start': day
                 })
 

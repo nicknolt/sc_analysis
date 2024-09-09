@@ -26,7 +26,7 @@ class TestModel(unittest.TestCase):
 
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Experiment.load(xp_name="XP9", delete_cache=False)
+        xp = Experiment.load(xp_name="XP12T")
 
     def test_load_experiment_XP6(self):
         config = Configuration(base_dir=Path('./resources'))

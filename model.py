@@ -49,7 +49,12 @@ class Cachable:
         cache_file = cache_dir / f"{self.result_id}.csv"
 
         self._df.to_csv(cache_file)
+    @property
+    def df(self) -> pd.DataFrame:
+        if not self._df:
+            self._df = self.compute()
 
+        return self._df
 
     @property
     @abstractmethod

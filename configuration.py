@@ -12,7 +12,7 @@ class Singleton(type):
 
 class Configuration(metaclass=Singleton):
 
-    def __init__(self, base_dir: Path, max_delay_complete_sequence: int = 3):
+    def __init__(self, base_dir: Path, max_delay_complete_sequence: int = 3):#valeur calculée en s pour 80% souris LP-NP
         self._base_dir = base_dir
         self.max_delay_complete_sequence: int = max_delay_complete_sequence
 

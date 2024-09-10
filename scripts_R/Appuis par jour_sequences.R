@@ -1,4 +1,4 @@
-# calcul du nb d'appuis/ souris au cours du temps / moyen au cours du temps / total au cous du temps
+# calcul du nb d'appuis/ souris au cours du temps / moyen au cours du temps / total au cours du temps
 # Data_SC / cache / XP_sequences.csv données corrigées à partir du sniffer local
 
 # Charger la bibliothèque dplyr
@@ -9,9 +9,10 @@ library(lubridate)
 
 ##### lecture fichier
 
-a=read.csv("/Users/macminicv/Documents/Data_SC/cache/XP10/XP10_sequences.csv",sep=",",header = TRUE) 
+a=read.csv("/Users/macminicv/Documents/Data_SC/cache/XP11T2/XP11T2_5_sequences.csv",sep=",",header = TRUE) 
 a$rfid_np <- as.factor(a$rfid_np)
 a$rfid_lp = as.factor(a$rfid_lp)
+a$lever_press_dt <- ymd_hms(a$lever_press_dt, tz = Sys.timezone())
 
 a <- a %>%
   filter(day_since_start != 0 & day_since_start <= 22 & rfid_lp != "0") 
@@ -57,11 +58,11 @@ somme <- profil %>%
   group_by(day_since_start) %>%
   summarize(
     count = n(),
-    mean_barpresses = sum(n),
+    total_barpresses = sum(n),
     sd_barpresses = sd(n),
     SEM = sd_barpresses / sqrt(n()))
 
-ggplot(somme, aes(x = (day_since_start), y = (mean_barpresses))) +
+ggplot(somme, aes(x = (day_since_start), y = (total_barpresses))) +
   geom_line(size=0.5) +
   geom_errorbar(aes(ymin = mean_barpresses - SEM, ymax = mean_barpresses + SEM),
                 width = 0.2) + # Largeur des barres d'erreur

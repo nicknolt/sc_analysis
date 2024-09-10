@@ -9,9 +9,10 @@ library(lubridate)
 
 ##### lecture fichier
 
-a=read.csv("/Users/macminicv/Documents/Data_SC/cache/XP10/XP10_sequences.csv",sep=",",header = TRUE) 
+a=read.csv("/Users/macminicv/Documents/Data_SC/cache/XP11T/XP11T_5_sequences.csv",sep=",",header = TRUE) 
 a$rfid_np <- as.factor(a$rfid_np)
 a$rfid_lp = as.factor(a$rfid_lp)
+a$lever_press_dt <- ymd_hms(a$lever_press_dt, tz = Sys.timezone())
 
 #  Calcul de la distribution du délai LP-NP _ seulement sequences completes (même souris)
 a <- a %>%

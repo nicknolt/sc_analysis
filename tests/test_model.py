@@ -1,5 +1,6 @@
 import datetime
 import os
+import subprocess
 import unittest
 from pathlib import Path
 from typing import Dict, Set, List
@@ -7,7 +8,7 @@ from typing import Dict, Set, List
 from common import FileMerger
 from common_log import basic_config_log
 from configuration import Configuration
-from model import Experiment, MiceOccupation, MiceSequence
+from model import Batch, MiceOccupation, MiceSequence, OccupationTime
 
 import pandas as pd
 
@@ -26,18 +27,41 @@ class TestModel(unittest.TestCase):
 
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Experiment.load(xp_name="XP12T")
+        xp = Batch.load(xp_name="XP12T")
 
-    def test_load_experiment_XP6(self):
+    def test_load_experiment(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Experiment.load(xp_name="XP11", delete_cache=False)
+        xp = Batch.load(xp_name="XP11")
 
-        tutu = xp.mice_location.mice_occupation
+        tutu = xp.get_mice_occupation(location="LMT")
+
+
         print("OK")
+
+    def test_compute_pourcentage_lever_press(self):
+        # https://stackoverflow.com/questions/23377108/pandas-percentage-of-total-with-groupby
+
+        config = Configuration(base_dir=Path('./resources'))
+        xp = Batch.load(xp_name="XP11")
+
+        df = xp.lever_press()
+
+        df = df.groupby(['day_since_start', 'rfid']).size().reset_index(name='nb_lever_press')
+        df["total_per_day"] = df.groupby('day_since_start')['nb_lever_press'].transform('sum')
+        df["percent_pressed"] = (df['nb_lever_press'] / df["total_per_day"])*100
+
+
+        ################################
+
+        # df = xp.mice_sequence._df
+        # df = df[df['complete_sequence'] == 'True']
+        # df = df.groupby(['day_since_start', 'rfid']).size().reset_index(name='nb_lever_press')
+
+        print("ok")
 
     def test_compute_sequences(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Experiment.load(xp_name="XP11")
+        xp = Batch.load(xp_name="XP11")
 
         ms = MiceSequence(xp)
         res = ms.compute(force_recompute=True)
@@ -45,72 +69,36 @@ class TestModel(unittest.TestCase):
         print("ok")
 
 
-    def test_occupation_time_each_mouse(self):
-        config = Configuration(base_dir=Path('./resources'))
-        xp = Experiment.load(xp_name="XP11")
+    def test_execute_r_script(self):
+        p = subprocess.Popen(
+            ["Rscript", "--vanilla", r"..\scripts_R\Appuis par jour_sequences.R"],
+            cwd=os.getcwd(),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
 
-        tutu = xp.mice_location.mice_occupation
+        output, error = p.communicate()
 
-        df = tutu._df
-        #
-        # df['mice_comb'] = df['mice_comb'].fillna('EMPTY')
-        # df['nb_mice'] = df.apply(lambda x: 0 if x['mice_comb'] == 'EMPTY' else len(x['mice_comb'].split('|')), axis=1)
-
-        to_concat: List[pd.DataFrame] = list()
-
-        for mouse in [*xp.mice, 'EMPTY']:
-            df_mouse = df[df['mice_comb'].str.contains(mouse)]
-            tmp_df = df_mouse.groupby(['day_since_start', 'nb_mice'])['duration'].sum().reset_index()
-            tmp_df['mouse'] = mouse
-            to_concat.append(tmp_df)
-
-        merged = pd.concat(to_concat).sort_values(['day_since_start', 'mouse']).reset_index()
-
-
-
+        if p.returncode == 0:
+            print('R OUTPUT:\n {0}'.format(output.decode("utf-8")))
+        else:
+            print('R ERROR:\n {0}'.format(error.decode("utf-8")))
 
         print("ok")
 
+    def test_occupation_time_each_mouse(self):
+        config = Configuration(base_dir=Path('./resources'))
+        xp = Batch.load(xp_name="XP11")
 
-        # def mouse_is_in(combi: str):
-        #     return mouse in combi
-        #
-        # for day, day_data in xp.mice_location.mice_occupation._df.groupby('day_since_start'):
-        #     for mouse in xp.mice:
-        #         tutu = day_data.mouse_comb.apply()
-        #
-        #         print("ok")
-        #         mouse_res = list()
-        #         for index, row in day_data.iterrows():
-        #             mice = str(row.mice_comb).split(',')
-        #             if mouse in mice:
-        #                 tmp_res = {
-        #                     'nb_mice': len(mice),
-        #                     'duration': row.duration,
-        #                 }
-        #
-        #                 mouse_res.append(tmp_res)
-        #
-        #         if not mouse_res:
-        #             continue
-        #
-        #     mouse_df = pd.DataFrame(mouse_res)
-        #
-        #     t_mouse_df = mouse_df.groupby('nb_mice')['duration'].sum().to_dict()
-        #
-        #     day_res = {
-        #         'mouse': mouse,
-        #         **t_mouse_df,
-        #         'day_since_start': day
-        #     }
-        #
-        #     res_final.append(day_res)
-        #
-        #     print(f"souris {mouse} dans {mice}")
-        #
-        # df_res = pd.DataFrame(res_final)
+        ot = OccupationTime(experiment=xp)
 
-        print("")
+        res = ot.compute()
+
+        print("OK")
+
+
+
 
 
     def test_mice_occupation_in_LMT(self):
@@ -120,7 +108,7 @@ class TestModel(unittest.TestCase):
 
         config = Configuration(base_dir=Path('./resources'))
 
-        xp = Experiment.load('XP9')
+        xp = Batch.load('XP9')
         mo = xp.mice_location
 
         mice = list(mo._df.columns[3:])

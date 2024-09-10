@@ -4,7 +4,7 @@ from typing import List
 
 from common_log import basic_config_log
 from configuration import Configuration
-from model import Experiment
+from model import Batch
 
 import pandas as pd
 class TestCecile(unittest.TestCase):
@@ -15,10 +15,10 @@ class TestCecile(unittest.TestCase):
 
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'))
-        xp = Experiment.load(xp_name="XP11T")
+        xp = Batch.load(xp_name="XP11T")
     def test_occupation_time_each_mouse(self):
         config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'))
-        xp = Experiment.load(xp_name="XP11T")
+        xp = Batch.load(xp_name="XP11T")
 
         tutu = xp.mice_location.mice_occupation
 

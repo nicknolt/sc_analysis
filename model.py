@@ -20,7 +20,7 @@ class Cachable:
         self.logger = create_logger(self)
         self._df: pd.DataFrame = None
 
-    def compute(self, force_recompute: bool = False):
+    def compute(self, force_recompute: bool = False) -> pd.DataFrame:
 
         base_dir = Configuration().get_base_dir()
         cache_dir = base_dir / "cache" / self.xp_name
@@ -40,6 +40,8 @@ class Cachable:
             # df.to_csv(cache_file)
 
         self.initialize()
+
+        return df
 
     def save(self):
         base_dir = Configuration().get_base_dir()
@@ -65,24 +67,27 @@ class Cachable:
 
     @property
     def dtype(self) -> Dict:
-        return {}
+        return {
+            'rfid_lp': 'string',
+            'rfid_np': 'string'
+        }
 
     def initialize(self):
         pass
 
-    @staticmethod
-    def delete_cache(xp_name: str):
-        base_dir = Configuration().get_base_dir()
-        cache_dir = base_dir / "cache" / xp_name
-
-        rmtree(cache_dir)
+    # @staticmethod
+    # def delete_cache(xp_name: str):
+    #     base_dir = Configuration().get_base_dir()
+    #     cache_dir = base_dir / "cache" / xp_name
+    #
+    #     rmtree(cache_dir)
 
 
 
 
 class TransitionResolver:
 
-    def __init__(self, experiment: 'Experiment'):
+    def __init__(self, experiment: 'Batch'):
         self.logger = create_logger(self)
         self.experiment = experiment
 
@@ -131,8 +136,7 @@ class TransitionResolver:
 
         # print("ENDED")
 
-class Experiment(Cachable):
-
+class Batch(Cachable):
 
     def __init__(self, xp_name: str):
         super().__init__()
@@ -143,12 +147,15 @@ class Experiment(Cachable):
         self.mice_sequence: MiceSequence = None
 
     @staticmethod
-    def load(xp_name: str) -> 'Experiment':
+    def load(xp_name: str) -> 'Batch':
 
-        res = Experiment(xp_name=xp_name)
+        res = Batch(xp_name=xp_name)
         res.compute()
 
         return res
+
+    def get_mice_occupation(self, location: str) -> 'MiceOccupation':
+        return MiceOccupation(self.mice_location, location=location)
 
     def lever_press(self) -> pd.DataFrame:
         df = self._df
@@ -317,7 +324,7 @@ class Experiment(Cachable):
 
 class MiceLocation(Cachable):
 
-    def __init__(self, experiment: Experiment):
+    def __init__(self, experiment: Batch):
 
         super().__init__()
         self.experiment = experiment
@@ -410,10 +417,11 @@ class MiceLocation(Cachable):
 
 class MiceOccupation(Cachable):
 
-    def __init__(self, mice_location: MiceLocation):
+    def __init__(self, mice_location: MiceLocation, location: str = "LMT"):
         super().__init__()
 
         self.mice_location = mice_location
+        self.location = location
 
     # def initialize(self):
     #     self._df['mice_comb'] = self._df['mice_comb'].astype(str)
@@ -427,7 +435,7 @@ class MiceOccupation(Cachable):
 
     @property
     def result_id(self) -> str:
-        return f"{self.xp_name}_occupation_LMT"
+        return f"{self.xp_name}_occupation_{self.location}"
 
     def _compute(self) -> pd.DataFrame:
 
@@ -440,7 +448,7 @@ class MiceOccupation(Cachable):
 
             res_comb: Dict[str, float] = dict()
             for index, row in day_data.iterrows():
-                mice_in_lmt = [x for x in mice if row[x] == "LMT"]
+                mice_in_lmt = [x for x in mice if row[x] == self.location]
 
                 mice_key = '|'.join(mice_in_lmt) if len(mice_in_lmt) else 'EMPTY'
 
@@ -475,7 +483,7 @@ class MiceOccupation(Cachable):
 
 class MiceSequence(Cachable):
 
-    def __init__(self, experiment: Experiment):
+    def __init__(self, experiment: Batch):
         super().__init__()
 
         self.experiment = experiment
@@ -531,3 +539,36 @@ class MiceSequence(Cachable):
     @property
     def xp_name(self) -> str:
         return self.experiment.xp_name
+
+
+class OccupationTime(Cachable):
+
+    def __init__(self, experiment: Batch):
+        super().__init__()
+        self.experiment = experiment
+
+    @property
+    def result_id(self) -> str:
+        return f"{self.xp_name}_occupation_time"
+
+    def _compute(self) -> pd.DataFrame:
+
+        xp = self.experiment
+        df = xp.mice_location.mice_occupation._df
+
+        to_concat: List[pd.DataFrame] = list()
+
+        for mouse in [*xp.mice, 'EMPTY']:
+            df_mouse = df[df['mice_comb'].str.contains(mouse)]
+            tmp_df = df_mouse.groupby(['day_since_start', 'nb_mice'])['duration'].sum().reset_index()
+            tmp_df['mouse'] = mouse
+            to_concat.append(tmp_df)
+
+        merged = pd.concat(to_concat).sort_values(['day_since_start', 'mouse']).reset_index(drop=True)
+
+        return merged
+
+    @property
+    def xp_name(self) -> str:
+        return self.experiment.xp_name
+

@@ -10,7 +10,7 @@ from dateutil.tz import tzlocal
 from common import FileMerger
 from common_log import basic_config_log
 from configuration import Configuration
-from model import Batch, MiceOccupation, MiceSequence, OccupationTime, Experiment
+from model import Batch, MiceOccupation, MiceSequence, OccupationTime, Experiment, PercentageCompleteSequence
 
 import pandas as pd
 
@@ -29,6 +29,10 @@ class TestModel(unittest.TestCase):
 
 
     def test_compute_cluster(self):
+        # https://stackoverflow.com/questions/22219004/how-to-group-dataframe-rows-into-list-in-pandas-groupby
+
+        # https://stackoverflow.com/questions/47152691/how-can-i-pivot-a-dataframe
+
         config = Configuration(base_dir=Path('./resources'))
         xp = Experiment()
 
@@ -36,10 +40,15 @@ class TestModel(unittest.TestCase):
         sequence = xp.get_percentage_complete_sequence()
 
         df = lever_pressed.df
-        df = df[df.day_since_start.between(1, 22)]
-        tutu = df.groupby(['rfid'])['percent_pressed']
-        print("ok")
+        df = df[df.day_since_start.between(1, 22)].reset_index(drop=True)
+        tutu = df.groupby(['rfid', 'day_since_start'])['percent_pressed'].apply(list)
+        # table = pd.pivot_table(df, values='D', index=['A', 'B'],
+        #
+        #                        columns=['C'], aggfunc="sum")
 
+        tata = df.pivot_table(index=['rfid'], columns='day_since_start', values='percent_pressed')
+        # toto = df.set_index(['rfid', 'day_since_start']).unstack(level=0)
+        print("ok")
 
     def test_Experiment_batches(self):
         config = Configuration(base_dir=Path('./resources'))
@@ -50,19 +59,20 @@ class TestModel(unittest.TestCase):
         res_seq = xp.get_percentage_complete_sequence().df
 
         print("ok")
-    def test_load_experiment(self):
-        config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(xp_name="XP12T")
+
 
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(xp_name="XP11")
+        xp = Batch.load(xp_name="XP8")
 
-        tutu = xp.get_mice_occupation(location="LMT")
+        # res = PercentageCompleteSequence(xp).compute(force_recompute=True)
 
-        df = xp.get_percentage_lever_pressed().df
-        df2 = xp.get_percentage_complete_sequence().df
 
+        # tutu = xp.get_mice_occupation(location="LMT")
+
+        # df = xp.get_percentage_lever_pressed().df
+        # # df2 = xp.get_percentage_complete_sequence().df
+        #
         print("OK")
 
     def test_compute_pourcentage_lever_press(self):

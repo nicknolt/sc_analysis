@@ -113,7 +113,7 @@ class TransitionResolver:
         from_dest = error_row.from_loc
 
         # get mice in from_dest when error is detected
-        res_occup = self._mice_occupation.get_occupation(time)
+        res_occup = self._mice_occupation.get_mice_location(time)
 
         mouse_in_from_loc = list()
 
@@ -196,6 +196,12 @@ class GlobalPercentageLeverPressed(Cachable):
     def xp_name(self) -> str:
         return "Global"
 
+    @property
+    def dtype(self) -> Dict:
+        return {
+            'rfid': str
+        }
+
 class GlobalPercentageCompleteSequence(Cachable):
 
     def __init__(self, experiment: Experiment):
@@ -226,6 +232,12 @@ class GlobalPercentageCompleteSequence(Cachable):
     def xp_name(self) -> str:
         return "Global"
 
+    @property
+    def dtype(self) -> Dict:
+        return {
+            'rfid': str
+        }
+
 class PercentageLeverPressed(Cachable):
 
     def __init__(self, batch: 'Batch'):
@@ -247,6 +259,12 @@ class PercentageLeverPressed(Cachable):
         return df
 
     @property
+    def dtype(self) -> Dict:
+        return {
+            'rfid': str
+        }
+
+    @property
     def xp_name(self) -> str:
         return f"{self.batch.xp_name}"
 
@@ -262,16 +280,26 @@ class PercentageCompleteSequence(Cachable):
 
     def _compute(self) -> pd.DataFrame:
 
+        df_lever = self.batch.get_percentage_lever_pressed().df
+        df_lever = df_lever.groupby('day_since_start')['total_per_day'].first().reset_index()
+
         df = self.batch.mice_sequence.df
         df = df[df['complete_sequence']]
+
         df = df.groupby(['day_since_start', 'rfid_lp']).size().reset_index(name='nb_complete_sequence')
-        df["total_per_day"] = df.groupby('day_since_start')['nb_complete_sequence'].transform('sum')
+        df = df.merge(df_lever[['day_since_start', 'total_per_day']], how='left', on='day_since_start')
         df["percent_complete_sequence"] = (df['nb_complete_sequence'] / df["total_per_day"])*100
 
         return df
     @property
     def xp_name(self) -> str:
         return self.batch.xp_name
+
+    @property
+    def dtype(self) -> Dict:
+        return {
+            'rfid': str
+        }
 
 
 class Batch(Cachable):
@@ -364,7 +392,9 @@ class Batch(Cachable):
         try:
             date = pd.to_datetime(df['time'], format=old_date_format)
         except ValueError as error:
-            date = pd.to_datetime(df['time'], format="ISO8601")
+            # mixed instead of "%Y-%m-%dT%H:%M:%S.%f%z" or "ISO8601" because when ms is .000 pandas remove them and when saved in csv the format is not the same
+            # and raise an error
+            date = pd.to_datetime(df['time'], format="mixed")
 
         df['time'] = date
         df.sort_values(by='time', inplace=True)
@@ -385,8 +415,8 @@ class Batch(Cachable):
 
         def get_num_day(row: pd.Series):
 
-            delta_day: timedelta = row.time - self.start_time
-            num_day = delta_day.days if row.time.hour < h_day_start else delta_day.days +1
+            delta_day: timedelta = row.time.date().day - self.start_time.date().day
+            num_day = delta_day if row.time.hour < h_day_start else delta_day +1
 
             return num_day
 
@@ -405,16 +435,16 @@ class Batch(Cachable):
         self.mice = id_mice
 
         # sort by time
-        self.df.sort_values(by='time', inplace=True)
         self.df['time'] = pd.to_datetime(self.df['time'])
+        self.df.sort_values(by='time', inplace=True)
 
-        mo = MiceLocation(experiment=self)
+        mo = MiceLocation(batch=self)
         mo.compute()
         self.mice_location = mo
 
         self.validate()
 
-        ms = MiceSequence(experiment=self)
+        ms = MiceSequence(batch=self)
         ms.compute()
         self.mice_sequence = ms
 
@@ -468,10 +498,10 @@ class Batch(Cachable):
 
 class MiceLocation(Cachable):
 
-    def __init__(self, experiment: Batch):
+    def __init__(self, batch: Batch):
 
         super().__init__()
-        self.experiment = experiment
+        self.batch = batch
         self.mice_occupation: MiceOccupation = None
 
     @property
@@ -481,7 +511,7 @@ class MiceLocation(Cachable):
 
     def _compute(self) -> pd.DataFrame:
 
-        df = self.experiment.df
+        df = self.batch.df
 
         transitions_df = df[df['action'] == 'transition'] #.reset_index(drop=True)
 
@@ -522,16 +552,16 @@ class MiceLocation(Cachable):
         df_occupation = pd.DataFrame(res_occup_list)
 
         # df of experimentation has been modified, need to save the new datas
-        self.experiment.save()
+        self.batch.save()
 
         return df_occupation
 
     @property
     def xp_name(self) -> str:
-        return self.experiment.xp_name
+        return self.batch.xp_name
 
     def initialize(self):
-        self._df['time'] = pd.to_datetime(self._df['time'])
+        self._df['time'] = pd.to_datetime(self._df['time'], format='mixed')
 
         mice_occupation = MiceOccupation(mice_location=self)
         mice_occupation.compute()
@@ -551,13 +581,27 @@ class MiceLocation(Cachable):
 
         return res[mouse]
 
-    def get_occupation(self, time: datetime) -> Dict:
+    def get_mice_location(self, time: datetime) -> Dict:
 
         df = self._df
 
-        res = df.loc[df['time'] <= time].tail(1).to_dict(orient='records')[0]
+        res = None
+
+        first_record = df.loc[df['time'] <= time].tail(1)
+        if len(first_record):
+            res = first_record.to_dict(orient='records')[0]
 
         return res
+
+    def get_nb_mice_in_location(self, location: str, time: datetime) -> int:
+        mice_loc = self.get_mice_location(time)
+
+        if not mice_loc:
+            return None
+
+        res = [loc for loc in mice_loc.values() if loc == location]
+
+        return len(res)
 
 class MiceOccupation(Cachable):
 
@@ -627,10 +671,10 @@ class MiceOccupation(Cachable):
 
 class MiceSequence(Cachable):
 
-    def __init__(self, experiment: Batch):
+    def __init__(self, batch: Batch):
         super().__init__()
 
-        self.experiment = experiment
+        self.batch = batch
 
     @property
     def result_id(self) -> str:
@@ -645,8 +689,12 @@ class MiceSequence(Cachable):
 
         res_sequence: Dict = None
 
-        df = self.experiment.df
+        # all events
+        df = self.batch.df
         df = df[df['action'].str.contains('id_lever|nose_poke')]
+
+        # mice location
+        mice_loc = self.batch.mice_location
 
         for row in df.itertuples():
 
@@ -659,6 +707,7 @@ class MiceSequence(Cachable):
                 res_sequence = dict()
 
                 res_sequence['lever_press_dt'] = row.time
+                res_sequence['nb_mice_lp'] = mice_loc.get_nb_mice_in_location(location="LMT", time=row.time)
                 res_sequence['rfid_lp'] = str(row.rfid)
                 res_sequence['day_since_start'] = row.day_since_start
 
@@ -670,6 +719,7 @@ class MiceSequence(Cachable):
                 elapsed_time: float = (row.time - res_sequence['lever_press_dt']).total_seconds()
                 res_sequence['elapsed_s'] = elapsed_time
                 res_sequence['rfid_np'] = row.rfid
+                res_sequence['nb_mice_np'] = mice_loc.get_nb_mice_in_location(location="LMT", time=row.time)
 
                 res_global.append(res_sequence)
                 res_sequence = None
@@ -682,7 +732,14 @@ class MiceSequence(Cachable):
 
     @property
     def xp_name(self) -> str:
-        return self.experiment.xp_name
+        return self.batch.xp_name
+
+    @property
+    def dtype(self) -> Dict:
+        return {
+            'nb_mice_lp': 'Int64',
+            'nb_mice_np': 'Int64'
+        }
 
 
 class OccupationTime(Cachable):

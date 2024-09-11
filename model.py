@@ -24,17 +24,22 @@ class Cachable:
 
         base_dir = Configuration().get_base_dir()
         cache_dir = base_dir / "cache" / self.xp_name
+
         cache_file = cache_dir / f"{self.result_id}.csv"
 
+        self.logger.info(f"Search result for {self.result_id}")
         if not cache_dir.exists():
             cache_dir.mkdir(parents=True)
 
         if cache_file.exists() and not force_recompute:
+            self.logger.info(f"'{self.result_id}' is loaded from cache")
             df = pd.read_csv(cache_file, dtype=self.dtype, index_col=0)
             self._df = df
         else:
 
+            self.logger.info(f"Compute {self.result_id}")
             df = self._compute()
+            self.logger.info(f"End Compute {self.result_id}")
             self._df = df
             self.save()
             # df.to_csv(cache_file)
@@ -51,7 +56,7 @@ class Cachable:
         self._df.to_csv(cache_file)
     @property
     def df(self) -> pd.DataFrame:
-        if not self._df:
+        if self._df is None:
             self._df = self.compute()
 
         return self._df
@@ -140,6 +145,134 @@ class TransitionResolver:
 
 
         # print("ENDED")
+class Experiment:
+
+    def __init__(self):
+        self.logger = create_logger(self)
+
+    @property
+    def batches(self) -> List[str]:
+
+        base_dir = Configuration().get_base_dir()
+        data_dir = base_dir / "data"
+
+        batch_names = [d.name for d in data_dir.glob('*/') if d.is_dir()]
+
+        return batch_names
+
+    def get_percentage_lever_pressed(self) -> 'GlobalPercentageLeverPressed':
+        return GlobalPercentageLeverPressed(self)
+
+    def get_percentage_complete_sequence(self) -> 'GlobalPercentageCompleteSequence':
+        return GlobalPercentageCompleteSequence(self)
+
+class GlobalPercentageLeverPressed(Cachable):
+
+    def __init__(self, experiment: Experiment):
+        super().__init__()
+        self.experiment = experiment
+
+    @property
+    def result_id(self) -> str:
+        return f"global_percentage_lever_pressed"
+
+    def _compute(self) -> pd.DataFrame:
+
+        batche_names = self.experiment.batches
+
+        list_df: List[pd.DataFrame] = list()
+
+        for batch_name in batche_names:
+            batch = Batch.load(batch_name)
+            df = batch.get_percentage_lever_pressed().df
+            df['batch'] = batch_name
+
+            list_df.append(df)
+
+        df_merged = pd.concat(list_df)
+
+        return df_merged
+    @property
+    def xp_name(self) -> str:
+        return "Global"
+
+class GlobalPercentageCompleteSequence(Cachable):
+
+    def __init__(self, experiment: Experiment):
+        super().__init__()
+        self.experiment = experiment
+
+    @property
+    def result_id(self) -> str:
+        return f"global_complete_sequence"
+
+    def _compute(self) -> pd.DataFrame:
+
+        batche_names = self.experiment.batches
+
+        list_df: List[pd.DataFrame] = list()
+
+        for batch_name in batche_names:
+            batch = Batch.load(batch_name)
+            df = batch.get_percentage_complete_sequence().df
+            df['batch'] = batch_name
+
+            list_df.append(df)
+
+        df_merged = pd.concat(list_df)
+
+        return df_merged
+    @property
+    def xp_name(self) -> str:
+        return "Global"
+
+class PercentageLeverPressed(Cachable):
+
+    def __init__(self, batch: 'Batch'):
+        super().__init__()
+        self.batch = batch
+
+    @property
+    def result_id(self) -> str:
+        return f"{self.xp_name}_percentage_lever_pressed"
+
+    def _compute(self) -> pd.DataFrame:
+
+        df = self.batch.lever_press()
+
+        df = df.groupby(['day_since_start', 'rfid']).size().reset_index(name='nb_lever_press')
+        df["total_per_day"] = df.groupby('day_since_start')['nb_lever_press'].transform('sum')
+        df["percent_pressed"] = (df['nb_lever_press'] / df["total_per_day"])*100
+
+        return df
+
+    @property
+    def xp_name(self) -> str:
+        return f"{self.batch.xp_name}"
+
+class PercentageCompleteSequence(Cachable):
+
+    def __init__(self, batch: 'Batch'):
+        super().__init__()
+        self.batch = batch
+
+    @property
+    def result_id(self) -> str:
+        return f"{self.xp_name}_percentage_complete_sequence"
+
+    def _compute(self) -> pd.DataFrame:
+
+        df = self.batch.mice_sequence.df
+        df = df[df['complete_sequence']]
+        df = df.groupby(['day_since_start', 'rfid_lp']).size().reset_index(name='nb_complete_sequence')
+        df["total_per_day"] = df.groupby('day_since_start')['nb_complete_sequence'].transform('sum')
+        df["percent_complete_sequence"] = (df['nb_complete_sequence'] / df["total_per_day"])*100
+
+        return df
+    @property
+    def xp_name(self) -> str:
+        return self.batch.xp_name
+
 
 class Batch(Cachable):
 
@@ -161,6 +294,12 @@ class Batch(Cachable):
 
     def get_mice_occupation(self, location: str) -> 'MiceOccupation':
         return MiceOccupation(self.mice_location, location=location)
+
+    def get_percentage_lever_pressed(self) -> PercentageLeverPressed:
+        return PercentageLeverPressed(self)
+
+    def get_percentage_complete_sequence(self):
+        return PercentageCompleteSequence(self)
 
     def lever_press(self) -> pd.DataFrame:
         df = self._df

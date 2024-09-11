@@ -5,10 +5,12 @@ import unittest
 from pathlib import Path
 from typing import Dict, Set, List
 
+from dateutil.tz import tzlocal
+
 from common import FileMerger
 from common_log import basic_config_log
 from configuration import Configuration
-from model import Batch, MiceOccupation, MiceSequence, OccupationTime
+from model import Batch, MiceOccupation, MiceSequence, OccupationTime, Experiment
 
 import pandas as pd
 
@@ -25,6 +27,29 @@ class TestModel(unittest.TestCase):
     #
     #     print(date)
 
+
+    def test_compute_cluster(self):
+        config = Configuration(base_dir=Path('./resources'))
+        xp = Experiment()
+
+        lever_pressed = xp.get_percentage_lever_pressed()
+        sequence = xp.get_percentage_complete_sequence()
+
+        df = lever_pressed.df
+        df = df[df.day_since_start.between(1, 22)]
+        tutu = df.groupby(['rfid'])['percent_pressed']
+        print("ok")
+
+
+    def test_Experiment_batches(self):
+        config = Configuration(base_dir=Path('./resources'))
+        xp = Experiment()
+        res = xp.batches
+
+        res = xp.get_percentage_lever_pressed().df
+        res_seq = xp.get_percentage_complete_sequence().df
+
+        print("ok")
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('./resources'))
         xp = Batch.load(xp_name="XP12T")
@@ -35,6 +60,8 @@ class TestModel(unittest.TestCase):
 
         tutu = xp.get_mice_occupation(location="LMT")
 
+        df = xp.get_percentage_lever_pressed().df
+        df2 = xp.get_percentage_complete_sequence().df
 
         print("OK")
 
@@ -53,10 +80,11 @@ class TestModel(unittest.TestCase):
 
         ################################
 
-        # df = xp.mice_sequence._df
-        # df = df[df['complete_sequence'] == 'True']
-        # df = df.groupby(['day_since_start', 'rfid']).size().reset_index(name='nb_lever_press')
-
+        df = xp.mice_sequence.df
+        df = df[df['complete_sequence']]
+        df = df.groupby(['day_since_start', 'rfid_lp']).size().reset_index(name='nb_complete_sequence')
+        df["total_per_day"] = df.groupby('day_since_start')['nb_complete_sequence'].transform('sum')
+        df["percent_complete_sequence"] = (df['nb_complete_sequence'] / df["total_per_day"])*100
         print("ok")
 
     def test_compute_sequences(self):

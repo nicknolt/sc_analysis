@@ -63,7 +63,7 @@ class TestModel(unittest.TestCase):
 
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(xp_name="XP8")
+        xp = Batch.load(xp_name="XP11")
 
         # res = PercentageCompleteSequence(xp).compute(force_recompute=True)
 

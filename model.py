@@ -7,6 +7,8 @@ from pathlib import Path
 from shutil import rmtree
 from typing import List, Dict, Tuple
 
+from pandas import Timestamp
+
 from common import FileMerger
 from common_log import create_logger
 from configuration import Configuration
@@ -412,10 +414,11 @@ class Batch(Cachable):
         # self.end_time = df.iloc[-1].time
 
         h_day_start: int = 19
+        date_day_start = self.start_time.date()
 
         def get_num_day(row: pd.Series):
 
-            delta_day: timedelta = row.time.date().day - self.start_time.date().day
+            delta_day: timedelta = (row.time.date() - date_day_start).days
             num_day = delta_day if row.time.hour < h_day_start else delta_day +1
 
             return num_day
@@ -435,7 +438,7 @@ class Batch(Cachable):
         self.mice = id_mice
 
         # sort by time
-        self.df['time'] = pd.to_datetime(self.df['time'])
+        self.df['time'] = pd.to_datetime(self.df['time'], format='mixed')
         self.df.sort_values(by='time', inplace=True)
 
         mo = MiceLocation(batch=self)

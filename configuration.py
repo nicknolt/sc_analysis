@@ -13,12 +13,17 @@ class Singleton(type):
 
 class Configuration(metaclass=Singleton):
 
-    def __init__(self, base_dir: Path, max_delay_complete_sequence: int = 3, analysis_interval: Tuple[int] = (1, 22)):#valeur calculée en s pour 80% souris LP-NP
+    def __init__(self,
+                 base_dir: Path,
+                 max_delay_complete_sequence: int = 3,
+                 analysis_interval: Tuple[int] = (1, 22),
+                 result_dir: Path = None
+                 ):#valeur calculée en s pour 80% souris LP-NP
         self._base_dir = base_dir
 
         # for complete sequences
         self.max_delay_complete_sequence: int = max_delay_complete_sequence
-
+        self.result_dir = result_dir
         # for all 'final' results and figures
         self.analysis_interval: Tuple[int] = analysis_interval
 

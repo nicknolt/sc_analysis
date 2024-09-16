@@ -15,10 +15,10 @@ class TestCecile(unittest.TestCase):
 
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'))
-        xp = Batch.load(xp_name="XP11T")
+        xp = Batch.load(batch_name="XP11T")
     def test_occupation_time_each_mouse(self):
         config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'))
-        xp = Batch.load(xp_name="XP11T")
+        xp = Batch.load(batch_name="XP11T")
         xp.get_mice_occupation("T_MAZE").compute()
         tutu = OccupationTime(xp)
 

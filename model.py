@@ -56,6 +56,11 @@ class Cachable:
         cache_file = cache_dir / f"{self.result_id}.csv"
 
         self._df.to_csv(cache_file)
+
+    def to_csv(self):
+        self.df.to_csv(Configuration().result_dir / f"{self.result_id}.csv")
+
+
     @property
     def df(self) -> pd.DataFrame:
         if self._df is None:
@@ -315,9 +320,9 @@ class Batch(Cachable):
         self.mice_sequence: MiceSequence = None
 
     @staticmethod
-    def load(xp_name: str) -> 'Batch':
+    def load(batch_name: str) -> 'Batch':
 
-        res = Batch(xp_name=xp_name)
+        res = Batch(xp_name=batch_name)
         res.compute()
 
         return res

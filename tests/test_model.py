@@ -63,7 +63,7 @@ class TestModel(unittest.TestCase):
 
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(xp_name="XP11")
+        xp = Batch.load(batch_name="XP11")
 
         # res = PercentageCompleteSequence(xp).compute(force_recompute=True)
 
@@ -79,7 +79,7 @@ class TestModel(unittest.TestCase):
         # https://stackoverflow.com/questions/23377108/pandas-percentage-of-total-with-groupby
 
         config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(xp_name="XP11")
+        xp = Batch.load(batch_name="XP11")
 
         df = xp.lever_press()
 
@@ -99,7 +99,7 @@ class TestModel(unittest.TestCase):
 
     def test_compute_sequences(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(xp_name="XP11")
+        xp = Batch.load(batch_name="XP11")
 
         ms = MiceSequence(xp)
         res = ms.compute(force_recompute=True)
@@ -127,7 +127,7 @@ class TestModel(unittest.TestCase):
 
     def test_occupation_time_each_mouse(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(xp_name="XP11")
+        xp = Batch.load(batch_name="XP11")
 
         ot = OccupationTime(experiment=xp)
 

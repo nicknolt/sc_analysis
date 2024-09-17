@@ -58,8 +58,11 @@ class Cachable:
         self._df.to_csv(cache_file)
 
     def to_csv(self):
-        self.df.to_csv(Configuration().result_dir / f"{self.result_id}.csv")
 
+        if not Configuration().result_dir.exists():
+            Configuration().result_dir.mkdir(parents=True)
+
+        self.df.to_csv(Configuration().result_dir / f"{self.result_id}.csv")
 
     @property
     def df(self) -> pd.DataFrame:
@@ -452,9 +455,9 @@ class Batch(Cachable):
 
         self.validate()
 
-        ms = MiceSequence(batch=self)
-        ms.compute()
-        self.mice_sequence = ms
+        # ms = MiceSequence(batch=self)
+        # ms.compute()
+        # self.mice_sequence = ms
 
 
     def validate(self) -> bool:
@@ -516,8 +519,99 @@ class MiceLocation(Cachable):
     def result_id(self) -> str:
         return f"{self.xp_name}_location"
 
+    @property
+    def dtype(self) -> Dict:
+        return {
+            'duration': float
+        }
 
     def _compute(self) -> pd.DataFrame:
+
+        df = self.batch.df
+        df['error'] = ''
+
+        transitions_df = df[df['action'] == 'transition'] #.reset_index(drop=True)
+
+        mice_list = transitions_df.rfid.unique()
+        res_df = pd.DataFrame(columns=['time'])
+        res_df[['day_since_start', 'time']] = transitions_df[['day_since_start', 'time']]
+        res_df.index = transitions_df.index
+
+        last_known: str = None
+        def find_location(row: pd.Series, rfid: str):
+
+            nonlocal last_known
+
+            to_loc = row.to_loc
+
+            if row.rfid == rfid:
+                last_known = to_loc
+                return to_loc
+            else:
+                return last_known
+
+        for mouse in mice_list:
+            last_known = "BLACK_BOX"
+            res_df[mouse] = transitions_df.apply(find_location, args=(mouse,), axis=1)
+
+            # detect error transitions
+            tmp_df = transitions_df[transitions_df['rfid'] == mouse]
+            tmp = tmp_df['to_loc'].shift(1)
+            tmp.iloc[0] = "BLACK_BOX"
+
+            idx_error = tmp_df[tmp_df['from_loc'] != tmp].index
+            df.loc[idx_error, 'error'] = "ERROR"
+
+
+        res_df["duration"] = - res_df.time.diff(periods=-1).dt.total_seconds()
+
+        self.batch.save()
+
+        return res_df
+        # transitions_df.error =
+        print("OK")
+        # mice = dict.fromkeys(transitions_df.rfid.unique(), "BLACK_BOX")
+        #
+        # res_occup_list: List = list()
+        # row_num = 0
+        # for idx, row in transitions_df.iterrows():
+        #
+        #     rfid = row.rfid
+        #     from_loc = row.from_loc
+        #     to_loc = row.to_loc
+        #
+        #     prev_loc = mice[rfid]
+        #
+        #     if from_loc != prev_loc:
+        #
+        #         df.loc[idx, 'error'] = "ERROR"
+        #     else:
+        #         df.loc[idx, 'error'] = ""
+        #
+        #     # Last transition is considered as the new location even if there is an error
+        #     mice[rfid] = to_loc
+        #
+        #     # compute duration with next row
+        #
+        #     if (row_num+1) < len(transitions_df):
+        #         next_row_time = transitions_df.iloc[row_num+1].time
+        #         duration = (next_row_time - row.time).total_seconds()
+        #     else:
+        #         duration = 0
+        #
+        #     row_num += 1
+        #
+        #     row_occup_dict = {'time': row.time, 'day_since_start': row.day_since_start, 'duration': duration, **mice}
+        #     res_occup_list.append(row_occup_dict)
+        #
+        # df_occupation = pd.DataFrame(res_occup_list)
+        #
+        # # df of experimentation has been modified, need to save the new datas
+        # self.batch.save()
+
+        return df_occupation
+
+    def _compute_old(self) -> pd.DataFrame:
 
         df = self.batch.df
 
@@ -662,7 +756,7 @@ class MiceOccupation(Cachable):
             for mice_comb, duration in values.items():
                 final_res.append({
                     'mice_comb': str(mice_comb),
-                    'duration': int(duration),
+                    'duration': duration,
                     'day_since_start': day
                 })
 

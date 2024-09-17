@@ -20,7 +20,6 @@ class Action(Enum):
 
 class OneStepSequence(Cachable):
 
-
     def __init__(self, batch: Batch, from_event: Action):
         super().__init__()
         self.batch = batch

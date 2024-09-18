@@ -410,8 +410,30 @@ class Batch(Cachable):
         df.sort_values(by='time', inplace=True)
 
         self._add_days(df)
+        self._add_transition_interval(df)
 
         return df
+
+
+    def _add_transition_interval(self, df: pd.DataFrame):
+
+        last_num_group = 0
+
+        def get_num_trans_group(row: pd.Series):
+
+            nonlocal last_num_group
+
+            res = last_num_group
+
+            if row.action == 'transition':
+                last_num_group += 1
+                res = last_num_group
+
+            return res
+
+        df["trans_group"] = df.apply(get_num_trans_group, axis=1)
+
+
 
 
     def _add_days(self, df: pd.DataFrame):
@@ -491,6 +513,7 @@ class Batch(Cachable):
 
             self.df.sort_values(by='time', inplace=True, ignore_index=True)
 
+
             # save after corrections
             self.save()
 
@@ -534,7 +557,7 @@ class MiceLocation(Cachable):
 
         mice_list = transitions_df.rfid.unique()
         res_df = pd.DataFrame(columns=['time'])
-        res_df[['day_since_start', 'time']] = transitions_df[['day_since_start', 'time']]
+        res_df[['day_since_start', 'time', 'trans_group']] = transitions_df[['day_since_start', 'time', 'trans_group']]
         res_df.index = transitions_df.index
 
         last_known: str = None
@@ -562,54 +585,23 @@ class MiceLocation(Cachable):
             idx_error = tmp_df[tmp_df['from_loc'] != tmp].index
             df.loc[idx_error, 'error'] = "ERROR"
 
+        def get_nb_mice(row: pd.Series, location: str):
+            locations = row.iloc[3:].values
+            res = len([mouse_loc for mouse_loc in locations if mouse_loc == location])
+
+            return res
+
+        # compute the nb of mice in all locations
+
+        for location in transitions_df.from_loc.unique():
+            res_df[f"nb_mice_{location}"] = res_df.apply(get_nb_mice, args=(location,), axis=1)
 
         res_df["duration"] = - res_df.time.diff(periods=-1).dt.total_seconds()
 
         self.batch.save()
 
         return res_df
-        # transitions_df.error =
-        print("OK")
-        # mice = dict.fromkeys(transitions_df.rfid.unique(), "BLACK_BOX")
-        #
-        # res_occup_list: List = list()
-        # row_num = 0
-        # for idx, row in transitions_df.iterrows():
-        #
-        #     rfid = row.rfid
-        #     from_loc = row.from_loc
-        #     to_loc = row.to_loc
-        #
-        #     prev_loc = mice[rfid]
-        #
-        #     if from_loc != prev_loc:
-        #
-        #         df.loc[idx, 'error'] = "ERROR"
-        #     else:
-        #         df.loc[idx, 'error'] = ""
-        #
-        #     # Last transition is considered as the new location even if there is an error
-        #     mice[rfid] = to_loc
-        #
-        #     # compute duration with next row
-        #
-        #     if (row_num+1) < len(transitions_df):
-        #         next_row_time = transitions_df.iloc[row_num+1].time
-        #         duration = (next_row_time - row.time).total_seconds()
-        #     else:
-        #         duration = 0
-        #
-        #     row_num += 1
-        #
-        #     row_occup_dict = {'time': row.time, 'day_since_start': row.day_since_start, 'duration': duration, **mice}
-        #     res_occup_list.append(row_occup_dict)
-        #
-        # df_occupation = pd.DataFrame(res_occup_list)
-        #
-        # # df of experimentation has been modified, need to save the new datas
-        # self.batch.save()
 
-        return df_occupation
 
     def _compute_old(self) -> pd.DataFrame:
 

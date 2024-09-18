@@ -28,6 +28,16 @@ class TestModel(unittest.TestCase):
     #     print(date)
 
 
+    def test_transition_interval(self):
+        config = Configuration(base_dir=Path('./resources'))
+        batch = Batch.load(batch_name="XP11")
+
+        df = batch.df
+
+        tmp = df.groupby('trans_group')['time'].transform('first')
+
+        print("ok")
+
     def test_compute_cluster(self):
         # https://stackoverflow.com/questions/22219004/how-to-group-dataframe-rows-into-list-in-pandas-groupby
 

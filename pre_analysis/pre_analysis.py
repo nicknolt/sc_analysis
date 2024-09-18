@@ -31,16 +31,24 @@ class OneStepSequence(Cachable):
 
     def _compute(self) -> pd.DataFrame:
 
+        location = "LMT"
+
         # events = self.batch.df[['action', 'time', 'rfid', 'day_since_start']].copy()
-        events = self.batch.df[['action', 'time', 'rfid', 'from_loc', 'to_loc', 'day_since_start']].copy()
-        events[["next_action", "time_next_action"]] = events.groupby(["rfid"])[['action', 'time']].shift(-1)
+        events = self.batch.df[['action', 'time', 'rfid', 'from_loc', 'to_loc', 'day_since_start', 'trans_group']].copy()
+        events[["next_action", "time_next_action", "trans_group_next"]] = events.groupby(["rfid"])[['action', 'time', 'trans_group']].shift(-1)
 
         events["duration"] = (events["time_next_action"] - events['time']).dt.total_seconds()
 
         if self.from_event == Action.TRANSITION:
-            events = events[(events['action'] == 'transition') & (events['to_loc'] == 'LMT')]
+            events = events[(events['action'] == 'transition') & (events['to_loc'] == location)]
         elif self.from_event == Action.LEVER_PRESS:
             events = events[events['action'] == 'id_lever']
+
+
+        df_mice_loc = self.batch.mice_location.df
+
+        events['nb_mice'] = events.merge(df_mice_loc[['trans_group', f'nb_mice_{location}']], on='trans_group')[f'nb_mice_{location}'].values
+        events['nb_mice_next'] = events.merge(df_mice_loc[['trans_group', f'nb_mice_{location}']], right_on='trans_group', left_on='trans_group_next')[f'nb_mice_{location}'].values
 
         return events
 

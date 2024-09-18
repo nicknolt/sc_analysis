@@ -8,9 +8,12 @@ library(lubridate)
 
 pdf(NULL)
 
+print("KIKOOLOL")
+
 args = commandArgs(trailingOnly=TRUE)
 csv_file = args[1]
 figure_file = args[2]
+action_type = args[3]
 
 ##### lecture fichier
 
@@ -26,9 +29,20 @@ a <- a %>%
   filter(day_since_start!= 0 & day_since_start <= 8 & rfid != "0") 
 
 
-# Filtrer uniquement les actions où l'action est LP
-df_LP <- a %>% 
-  filter(action == "id_lever")
+if (action_type=='LEVER_PRESS'){
+
+    print("LEVER PRESS!!")
+    # Filtrer uniquement les actions où l'action est LP
+    df_LP <- a %>%
+      filter(action == "id_lever")
+}else if(action_type=="TRANSITION"){
+
+    # Filtrer uniquement les actions où l'action est LP
+    df_LP <- a %>%
+      filter(action == "transition")
+}
+
+
 
 # Calculer la distribution des actions suivantes après Action 1 pour chaque souris
 distribution <- df_LP %>%

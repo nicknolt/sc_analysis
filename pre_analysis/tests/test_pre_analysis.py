@@ -15,9 +15,10 @@ class TestPreAnalysis(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         basic_config_log()
+        config = Configuration(base_dir=Path('../../tests/resources'), result_dir=Path(r"C:\Users\Nicolas\Desktop\tmp"))
 
     def test_OneStepSeq(self):
-        config = Configuration(base_dir=Path('../../tests/resources'), result_dir=Path(r"C:\Users\Nicolas\Desktop\tmp"))
+        # config = Configuration(base_dir=Path('../../tests/resources'), result_dir=Path(r"C:\Users\Nicolas\Desktop\tmp"))
 
         # res = one_step_sequence(batch_name="XP11", from_event=Action.TRANSITION)
         #
@@ -28,3 +29,13 @@ class TestPreAnalysis(unittest.TestCase):
         res_comp = res.compute(force_recompute=True)
         #
         print("ok")
+
+    def test_figure(self):
+        xp = Batch.load(batch_name="XP11")
+
+        res = OneStepSequence(batch=xp, from_event=Action.LEVER_PRESS)
+        res.export_figure()
+
+        res = OneStepSequence(batch=xp, from_event=Action.TRANSITION)
+        res.export_figure()
+

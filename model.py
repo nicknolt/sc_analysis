@@ -57,12 +57,15 @@ class Cachable:
 
         self._df.to_csv(cache_file)
 
+    def csv_output(self) -> Path:
+        return Path(Configuration().result_dir / f"{self.result_id}.csv")
+
     def to_csv(self):
 
         if not Configuration().result_dir.exists():
             Configuration().result_dir.mkdir(parents=True)
 
-        self.df.to_csv(Configuration().result_dir / f"{self.result_id}.csv")
+        self.df.to_csv(self.csv_output())
 
     @property
     def df(self) -> pd.DataFrame:

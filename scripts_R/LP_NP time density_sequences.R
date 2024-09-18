@@ -9,7 +9,7 @@ library(lubridate)
 
 ##### lecture fichier
 
-a=read.csv("/Users/macminicv/Documents/Data_SC/cache/XP11T/XP11T_5_sequences.csv",sep=",",header = TRUE) 
+a=read.csv("/Users/macminicv/Documents/Data_SC/cache/XP11/XP11_3_sequences.csv",sep=",",header = TRUE) 
 a$rfid_np <- as.factor(a$rfid_np)
 a$rfid_lp = as.factor(a$rfid_lp)
 a$lever_press_dt <- ymd_hms(a$lever_press_dt, tz = Sys.timezone())

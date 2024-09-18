@@ -24,7 +24,7 @@ class TestPreAnalysis(unittest.TestCase):
         # res.to_csv()
         xp = Batch.load(batch_name="XP11")
 
-        res = OneStepSequence(batch=xp, from_event=Action.TRANSITION)
+        res = OneStepSequence(batch=xp, from_event=Action.LEVER_PRESS)
         res_comp = res.compute(force_recompute=True)
         #
         print("ok")

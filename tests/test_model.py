@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from typing import Dict, Set, List
 
+from PIL import Image
 from dateutil.tz import tzlocal
 
 from common import FileMerger
@@ -19,6 +20,7 @@ class TestModel(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         basic_config_log()
+        config = Configuration(base_dir=Path('./resources'), result_dir=Path(r"C:\Users\Nicolas\Desktop\tmp\SC_OUTPUT"))
 
     # def test_iso_format(self):
     #     date_str = "2024-09-06T16:32:14.723+02:00"
@@ -127,8 +129,13 @@ class TestModel(unittest.TestCase):
 
 
     def test_execute_r_script(self):
+
+        output_file = Configuration().result_dir / 'XP11_one_step_seq_LEVER_PRESS_CAMEMBERT.jpg'
         p = subprocess.Popen(
-            ["Rscript", "--vanilla", r"..\scripts_R\Appuis par jour_sequences.R"],
+            ["Rscript", "--vanilla",
+             r"..\scripts_R\ND_LP_camembert.R",
+             r"C:\Users\Nicolas\PycharmProjects\SC_Analysis\tests\resources\cache\XP11\XP11_one_step_seq_LEVER_PRESS.csv",
+             output_file.absolute()],
             cwd=os.getcwd(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -140,7 +147,12 @@ class TestModel(unittest.TestCase):
         if p.returncode == 0:
             print('R OUTPUT:\n {0}'.format(output.decode("utf-8")))
         else:
+            print('R OUTPUT:\n {0}'.format(output.decode("utf-8")))
             print('R ERROR:\n {0}'.format(error.decode("utf-8")))
+
+        # with Image.open(output_file) as img:
+        #     img.show()
+
 
         print("ok")
 

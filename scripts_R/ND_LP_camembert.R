@@ -8,8 +8,6 @@ library(lubridate)
 
 pdf(NULL)
 
-print("KIKOOLOL")
-
 args = commandArgs(trailingOnly=TRUE)
 csv_file = args[1]
 figure_file = args[2]

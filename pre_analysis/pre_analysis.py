@@ -1,14 +1,11 @@
-import os
-import subprocess
 from enum import Enum
-from pathlib import Path
-from typing import List, Dict
+from typing import List
 
 import pandas as pd
 
-from common_log import create_logger
-from configuration import Configuration
-from model import Cachable, Batch
+from model import Batch
+from process import Process, RFigure
+
 
 def one_step_sequence(batch_name: str, from_event: 'Action') -> 'OneStepSequence':
 
@@ -22,50 +19,63 @@ class Action(Enum):
     TRANSITION = 1,
     LEVER_PRESS = 2
 
-class RFigure():
 
-    def __init__(self, process: 'OneStepSequence', script_name: str):
-        self.logger = create_logger(self)
-        self.process = process
-        self.script_name = script_name
+class OneStepSequenceFigure(RFigure):
 
-    def output_file_name(self) -> str:
-        return f"{self.process.result_id}.jpg"
+    def __init__(self, process: 'OneStepSequence'):
+        super().__init__(process, "ND_LP_camembert.R")
 
+    @property
     def extra_args(self) -> List[str]:
         return [self.process.from_event.name]
-
-    def export(self):
-
-        self.process.to_csv()
-
-        extra = str.join(',', self.extra_args())
-
-        script_r = Path(f"..\..\scripts_R\{self.script_name}.R")
-        output_file = Configuration().result_dir / self.output_file_name()
-
-        p = subprocess.Popen(
-            ["Rscript", "--vanilla",
-             script_r,
-             self.process.csv_output().absolute(),
-             output_file.absolute(),
-             extra],
-            cwd=os.getcwd(),
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-
-        output, error = p.communicate()
-
-        if p.returncode == 0:
-            print('R OUTPUT:\n {0}'.format(output.decode("utf-8")))
-        else:
-            print('R OUTPUT:\n {0}'.format(output.decode("utf-8")))
-            print('R ERROR:\n {0}'.format(error.decode("utf-8")))
+    @property
+    def figure_id(self) -> str:
+        return f"{self.process.result_id}.jpg"
 
 
-class OneStepSequence(Cachable):
+class MiceWeight(Process):
+
+    def __init__(self, batch: Batch):
+        super().__init__()
+        self.batch = batch
+
+    @property
+    def result_id(self) -> str:
+        return f"{self.batch_name}_mice_weight"
+
+    def _compute(self) -> pd.DataFrame:
+
+        df = self.batch.df
+        df = df[(df['action'] == 'transition') & (df['rfid'] != "0")]
+
+        # keep only usefull columns
+        df = df.loc[:, ['rfid', 'weight', 'day_since_start']]
+
+        return df
+
+    @property
+    def batch_name(self) -> str:
+        return self.batch.batch_name
+
+    def initialize(self):
+        self.figure = MiceWeightFigure(process=self)
+
+
+class MiceWeightFigure(RFigure):
+
+    def __init__(self, process: Process):
+        super().__init__(process, "ND_Weight_from Local_sniffer_events.R")
+
+    @property
+    def figure_id(self) -> str:
+        return f"{self.process.result_id}.jpg"
+
+    @property
+    def extra_args(self) -> List[str]:
+        return
+
+
+class OneStepSequence(Process):
 
     def __init__(self, batch: Batch, from_event: Action):
         super().__init__()
@@ -74,7 +84,7 @@ class OneStepSequence(Cachable):
 
     @property
     def result_id(self) -> str:
-        return f"{self.batch.xp_name}_one_step_seq_{Action(self.from_event).name}"
+        return f"{self.batch.batch_name}_one_step_seq_{Action(self.from_event).name}"
 
     def _compute(self) -> pd.DataFrame:
 
@@ -99,10 +109,23 @@ class OneStepSequence(Cachable):
 
         return events
 
-    def export_figure(self):
-        figure = RFigure(process=self, script_name="ND_LP_camembert")
-        figure.export()
+    def initialize(self):
+        self.figure = OneStepSequenceFigure(process=self)
+
+    # def export_figure(self):
+    #     def run():
+    #         # figure = RFigure(process=self, script_name="ND_LP_camembert")
+    #         figure = OneStepSequenceFigure(process=self)
+    #         figure.export()
+    #
+    #         image = Image.open(figure.figure_output_file)
+    #         image.show()
+    #
+    #     thread = Thread(target=run)
+    #     thread.start()
+
+
 
     @property
-    def xp_name(self) -> str:
-        return self.batch.xp_name
+    def batch_name(self) -> str:
+        return self.batch.batch_name

@@ -1,13 +1,8 @@
 import datetime
 import os
-from abc import abstractmethod
 from datetime import timedelta
 from io import StringIO
-from pathlib import Path
-from shutil import rmtree
-from typing import List, Dict, Tuple
-
-from pandas import Timestamp
+from typing import List, Dict
 
 from common import FileMerger
 from common_log import create_logger
@@ -16,96 +11,7 @@ import numpy as np
 
 import pandas as pd
 
-class Cachable:
-
-    def __init__(self):
-        self.logger = create_logger(self)
-        self._df: pd.DataFrame = None
-
-    def compute(self, force_recompute: bool = False) -> pd.DataFrame:
-
-        base_dir = Configuration().get_base_dir()
-        cache_dir = base_dir / "cache" / self.xp_name
-
-        cache_file = cache_dir / f"{self.result_id}.csv"
-
-        self.logger.info(f"Search result for {self.result_id}")
-        if not cache_dir.exists():
-            cache_dir.mkdir(parents=True)
-
-        if cache_file.exists() and not force_recompute:
-            self.logger.info(f"'{self.result_id}' is loaded from cache")
-            df = pd.read_csv(cache_file, dtype=self.dtype, index_col=0)
-            self._df = df
-        else:
-
-            self.logger.info(f"Compute {self.result_id}")
-            df = self._compute()
-            self.logger.info(f"End Compute {self.result_id}")
-            self._df = df
-            self.save()
-            # df.to_csv(cache_file)
-
-        self.initialize()
-
-        return df
-
-    def save(self):
-        base_dir = Configuration().get_base_dir()
-        cache_dir = base_dir / "cache" / self.xp_name
-        cache_file = cache_dir / f"{self.result_id}.csv"
-
-        self._df.to_csv(cache_file)
-
-    def csv_output(self) -> Path:
-        return Path(Configuration().result_dir / f"{self.result_id}.csv")
-
-    def to_csv(self):
-
-        if not Configuration().result_dir.exists():
-            Configuration().result_dir.mkdir(parents=True)
-
-        self.df.to_csv(self.csv_output())
-
-    @property
-    def df(self) -> pd.DataFrame:
-        if self._df is None:
-            self._df = self.compute()
-
-        return self._df
-
-    @property
-    @abstractmethod
-    def result_id(self) -> str:
-        pass
-
-    @abstractmethod
-    def _compute(self) -> pd.DataFrame:
-        pass
-
-    @property
-    @abstractmethod
-    def xp_name(self) -> str:
-        pass
-
-    @property
-    def dtype(self) -> Dict:
-        return {
-            'rfid_lp': 'string',
-            'rfid_np': 'string'
-        }
-
-    def initialize(self):
-        pass
-
-    # @staticmethod
-    # def delete_cache(xp_name: str):
-    #     base_dir = Configuration().get_base_dir()
-    #     cache_dir = base_dir / "cache" / xp_name
-    #
-    #     rmtree(cache_dir)
-
-
+from process import Process
 
 
 class TransitionResolver:
@@ -179,7 +85,7 @@ class Experiment:
     def get_percentage_complete_sequence(self) -> 'GlobalPercentageCompleteSequence':
         return GlobalPercentageCompleteSequence(self)
 
-class GlobalPercentageLeverPressed(Cachable):
+class GlobalPercentageLeverPressed(Process):
 
     def __init__(self, experiment: Experiment):
         super().__init__()
@@ -206,7 +112,7 @@ class GlobalPercentageLeverPressed(Cachable):
 
         return df_merged
     @property
-    def xp_name(self) -> str:
+    def batch_name(self) -> str:
         return "Global"
 
     @property
@@ -215,7 +121,7 @@ class GlobalPercentageLeverPressed(Cachable):
             'rfid': str
         }
 
-class GlobalPercentageCompleteSequence(Cachable):
+class GlobalPercentageCompleteSequence(Process):
 
     def __init__(self, experiment: Experiment):
         super().__init__()
@@ -242,7 +148,7 @@ class GlobalPercentageCompleteSequence(Cachable):
 
         return df_merged
     @property
-    def xp_name(self) -> str:
+    def batch_name(self) -> str:
         return "Global"
 
     @property
@@ -251,7 +157,7 @@ class GlobalPercentageCompleteSequence(Cachable):
             'rfid': str
         }
 
-class PercentageLeverPressed(Cachable):
+class PercentageLeverPressed(Process):
 
     def __init__(self, batch: 'Batch'):
         super().__init__()
@@ -259,7 +165,7 @@ class PercentageLeverPressed(Cachable):
 
     @property
     def result_id(self) -> str:
-        return f"{self.xp_name}_percentage_lever_pressed"
+        return f"{self.batch_name}_percentage_lever_pressed"
 
     def _compute(self) -> pd.DataFrame:
 
@@ -278,10 +184,10 @@ class PercentageLeverPressed(Cachable):
         }
 
     @property
-    def xp_name(self) -> str:
-        return f"{self.batch.xp_name}"
+    def batch_name(self) -> str:
+        return f"{self.batch.batch_name}"
 
-class PercentageCompleteSequence(Cachable):
+class PercentageCompleteSequence(Process):
 
     def __init__(self, batch: 'Batch'):
         super().__init__()
@@ -289,7 +195,7 @@ class PercentageCompleteSequence(Cachable):
 
     @property
     def result_id(self) -> str:
-        return f"{self.xp_name}_percentage_complete_sequence"
+        return f"{self.batch_name}_percentage_complete_sequence"
 
     def _compute(self) -> pd.DataFrame:
 
@@ -305,8 +211,8 @@ class PercentageCompleteSequence(Cachable):
 
         return df
     @property
-    def xp_name(self) -> str:
-        return self.batch.xp_name
+    def batch_name(self) -> str:
+        return self.batch.batch_name
 
     @property
     def dtype(self) -> Dict:
@@ -315,7 +221,7 @@ class PercentageCompleteSequence(Cachable):
         }
 
 
-class Batch(Cachable):
+class Batch(Process):
 
     def __init__(self, xp_name: str):
         super().__init__()
@@ -365,12 +271,12 @@ class Batch(Cachable):
 
     @property
     def result_id(self) -> str:
-        return f"{self.xp_name}_events"
+        return f"{self.batch_name}_events"
 
     def _compute(self) -> pd.DataFrame:
 
         base_dir = Configuration().get_base_dir()
-        data_dir = base_dir / "data" / self.xp_name
+        data_dir = base_dir / "data" / self.batch_name
 
         csv_file = list(data_dir.glob("*.csv"))
         csv_file.sort(key=os.path.getmtime)
@@ -459,7 +365,7 @@ class Batch(Cachable):
         df["day_since_start"] = df.apply(get_num_day, axis=1)
 
     @property
-    def xp_name(self) -> str:
+    def batch_name(self) -> str:
         return self._xp_name
 
     def initialize(self):
@@ -533,7 +439,7 @@ class Batch(Cachable):
         }
 
 
-class MiceLocation(Cachable):
+class MiceLocation(Process):
 
     def __init__(self, batch: Batch):
 
@@ -543,7 +449,7 @@ class MiceLocation(Cachable):
 
     @property
     def result_id(self) -> str:
-        return f"{self.xp_name}_location"
+        return f"{self.batch_name}_location"
 
     @property
     def dtype(self) -> Dict:
@@ -654,8 +560,8 @@ class MiceLocation(Cachable):
         return df_occupation
 
     @property
-    def xp_name(self) -> str:
-        return self.batch.xp_name
+    def batch_name(self) -> str:
+        return self.batch.batch_name
 
     def initialize(self):
         self._df['time'] = pd.to_datetime(self._df['time'], format='mixed')
@@ -700,7 +606,7 @@ class MiceLocation(Cachable):
 
         return len(res)
 
-class MiceOccupation(Cachable):
+class MiceOccupation(Process):
 
     def __init__(self, mice_location: MiceLocation, location: str = "LMT"):
         super().__init__()
@@ -720,7 +626,7 @@ class MiceOccupation(Cachable):
 
     @property
     def result_id(self) -> str:
-        return f"{self.xp_name}_occupation_{self.location}"
+        return f"{self.batch_name}_occupation_{self.location}"
 
     def _compute(self) -> pd.DataFrame:
 
@@ -763,10 +669,10 @@ class MiceOccupation(Cachable):
         return df
 
     @property
-    def xp_name(self) -> str:
-        return self.mice_location.xp_name
+    def batch_name(self) -> str:
+        return self.mice_location.batch_name
 
-class MiceSequence(Cachable):
+class MiceSequence(Process):
 
     def __init__(self, batch: Batch):
         super().__init__()
@@ -776,7 +682,7 @@ class MiceSequence(Cachable):
     @property
     def result_id(self) -> str:
         max_delay = Configuration().max_delay_complete_sequence
-        return f"{self.xp_name}_{max_delay}_sequences"
+        return f"{self.batch_name}_{max_delay}_sequences"
 
     def _compute(self) -> pd.DataFrame:
 
@@ -828,8 +734,8 @@ class MiceSequence(Cachable):
         return res_df
 
     @property
-    def xp_name(self) -> str:
-        return self.batch.xp_name
+    def batch_name(self) -> str:
+        return self.batch.batch_name
 
     @property
     def dtype(self) -> Dict:
@@ -839,7 +745,7 @@ class MiceSequence(Cachable):
         }
 
 
-class OccupationTime(Cachable):
+class OccupationTime(Process):
 
     def __init__(self, experiment: Batch):
         super().__init__()
@@ -847,7 +753,7 @@ class OccupationTime(Cachable):
 
     @property
     def result_id(self) -> str:
-        return f"{self.xp_name}_occupation_time"
+        return f"{self.batch_name}_occupation_time"
 
     def _compute(self) -> pd.DataFrame:
 
@@ -867,6 +773,6 @@ class OccupationTime(Cachable):
         return merged
 
     @property
-    def xp_name(self) -> str:
-        return self.experiment.xp_name
+    def batch_name(self) -> str:
+        return self.experiment.batch_name
 

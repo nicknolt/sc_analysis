@@ -57,12 +57,14 @@ class Process:
 
     def export_figure(self):
         def run():
-            # figure = RFigure(process=self, script_name="ND_LP_camembert")
-            # figure = OneStepSequenceFigure(process=self)
+
             self.figure.export()
 
-            image = Image.open(self.figure.figure_output_file)
-            image.show()
+            fig_files = list(self.figure.figure_output_dir.glob(pattern=f"{self.figure.figure_id}*.jpg"))
+
+            for fig in fig_files:
+                image = Image.open(fig)
+                image.show()
 
         thread = Thread(target=run)
         thread.start()
@@ -124,8 +126,8 @@ class RFigure:
         self.script_name = script_name
 
     @property
-    def figure_output_file(self) -> Path:
-        return Configuration().result_dir / self.figure_id
+    def figure_output_dir(self) -> Path:
+        return Configuration().result_dir
 
     @property
     @abstractmethod
@@ -144,7 +146,7 @@ class RFigure:
         extra = str.join(',', self.extra_args) if self.extra_args else ''
 
         script_r = Path(f"..\..\scripts_R\{self.script_name}")
-        output_file = self.figure_output_file
+        output_file = self.figure_output_dir / self.figure_id
 
         p = subprocess.Popen(
             ["Rscript", "--vanilla",

@@ -53,6 +53,8 @@ ggplot(Poids_moyen, aes(x = as.numeric(day_since_start), y = as.numeric(av_weigh
   #facet_wrap(~rfid, scales = "fixed") + #par souris ou sur le meme graphe
   theme_minimal()
 
+ggsave(paste(figure_file, "_pd_moyen", ".jpg"))
+
 # Moyenne par jour  [# de ligne= J+1 (commence à 1 et on J0)]
 # print(Poids$av_weight[20])
 
@@ -75,6 +77,8 @@ ggplot(Indiv_Poids, aes(x = as.numeric(day_since_start), y = as.numeric(av_weigh
   labs(x = "Jour", y = "Poids (g)") +
  #facet_wrap(~rfid, scales = "fixed") + #par souris ou sur le meme graphe
   theme_minimal()
+
+ggsave(paste(figure_file, "_individuel", ".jpg"))
 
 # POids individuel par jour et par souris [# de ligne]
 print(Indiv_Poids$av_weight[3])
@@ -119,7 +123,7 @@ ggplot(avg_w_loss, aes(x = as.numeric(day_since_start), y = as.numeric(avg_loss)
   labs(x = "Jour", y = "% weight loss ") +
   #facet_wrap(~rfid, scales = "fixed") + #par souris ou sur le meme graphe
   theme_minimal()
-
+ggsave(paste(figure_file, "_avg_pct_loss", ".jpg"))
 
 # Créer un graphique du % perte par rapport au 1er jour  et par souris en utilisant le nombre de jours sur l'axe des abscisses
 ggplot(w_loss, aes(x = as.numeric(day_since_start), y = as.numeric(Pct_loss), color = rfid)) +
@@ -128,4 +132,4 @@ ggplot(w_loss, aes(x = as.numeric(day_since_start), y = as.numeric(Pct_loss), co
   #facet_wrap(~rfid, scales = "fixed") + #par souris ou sur le meme graphe
   theme_minimal()
 
-ggsave(figure_file)
+ggsave(paste(figure_file, "_pct_loss", ".jpg"))

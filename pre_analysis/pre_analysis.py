@@ -30,7 +30,7 @@ class OneStepSequenceFigure(RFigure):
         return [self.process.from_event.name]
     @property
     def figure_id(self) -> str:
-        return f"{self.process.result_id}.jpg"
+        return f"{self.process.result_id}"
 
 
 class MiceWeight(Process):
@@ -68,7 +68,7 @@ class MiceWeightFigure(RFigure):
 
     @property
     def figure_id(self) -> str:
-        return f"{self.process.result_id}.jpg"
+        return f"{self.process.result_id}"
 
     @property
     def extra_args(self) -> List[str]:
@@ -111,20 +111,6 @@ class OneStepSequence(Process):
 
     def initialize(self):
         self.figure = OneStepSequenceFigure(process=self)
-
-    # def export_figure(self):
-    #     def run():
-    #         # figure = RFigure(process=self, script_name="ND_LP_camembert")
-    #         figure = OneStepSequenceFigure(process=self)
-    #         figure.export()
-    #
-    #         image = Image.open(figure.figure_output_file)
-    #         image.show()
-    #
-    #     thread = Thread(target=run)
-    #     thread.start()
-
-
 
     @property
     def batch_name(self) -> str:

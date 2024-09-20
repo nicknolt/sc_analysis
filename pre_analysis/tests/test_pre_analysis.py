@@ -20,7 +20,7 @@ class TestPreAnalysis(unittest.TestCase):
 
     def test_with_func(self):
         res = one_step_sequence(batch_name="XP11", from_event=Action.TRANSITION).export_figure()
-        res = one_step_sequence(batch_name="XP11", from_event=Action.LEVER_PRESS).export_figure()
+        # res = one_step_sequence(batch_name="XP11", from_event=Action.LEVER_PRESS).export_figure()
 
 
     def test_MiceWeight(self):

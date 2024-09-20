@@ -5,17 +5,24 @@
 library(dplyr)
 library(ggplot2)
 library(lubridate)
+library(jsonlite)
 
 pdf(NULL)
 
 args = commandArgs(trailingOnly=TRUE)
-csv_file = args[1]
-figure_file = args[2]
-action_type = args[3]
+json <- args[1]
+json_conf <- fromJSON(json)
+
+
+csv_file = toString(json_conf['csv_file'])
+figure_file = json_conf['figure_file']
+action_type = json_conf['from_event']
 
 ##### lecture fichier
+print(csv_file)
+print(typeof((csv_file)))
 
-a=read.csv(args[1],sep=",",header = TRUE)
+a=read.csv(file = csv_file,sep=",",header = TRUE)
 a$rfid <- as.factor(a$rfid)
 a$time <- ymd_hms(a$time, tz = Sys.timezone())
 a$time_next_action <- ymd_hms(a$time_next_action, tz = Sys.timezone())

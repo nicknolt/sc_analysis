@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List
+from typing import List, Dict
 
 import pandas as pd
 
@@ -26,11 +26,11 @@ class OneStepSequenceFigure(RFigure):
         super().__init__(process, "ND_LP_camembert.R")
 
     @property
-    def extra_args(self) -> List[str]:
-        return [self.process.from_event.name]
+    def extra_args(self) -> Dict[str, str]:
+        return {"from_event": self.process.from_event.name}
     @property
     def figure_id(self) -> str:
-        return f"{self.process.result_id}"
+        return f"{self.process.result_id}.jpg"
 
 
 class MiceWeight(Process):

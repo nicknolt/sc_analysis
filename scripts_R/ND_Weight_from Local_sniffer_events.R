@@ -9,12 +9,21 @@
 library(dplyr)
 library(ggplot2)
 library(lubridate)
+library(jsonlite)
+
+args = commandArgs(trailingOnly=TRUE)
+print(args)
+json <- args[1]
+
+print(json)
+
+json_conf <- fromJSON(json)
 
 pdf(NULL)
 
-args = commandArgs(trailingOnly=TRUE)
-csv_file = args[1]
-figure_file = args[2]
+
+csv_file = json_conf['csv_file']
+figure_file = json_conf['figure_file']
 # action_type = args[3]
 
 ##### lecture fichier

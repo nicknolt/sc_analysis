@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 from abc import abstractmethod
@@ -136,7 +137,7 @@ class RFigure:
 
     @property
     @abstractmethod
-    def extra_args(self) -> List[str]:
+    def extra_args(self) -> Dict[str, str]:
         pass
 
     def export(self):
@@ -148,17 +149,38 @@ class RFigure:
         script_r = Path(f"..\..\scripts_R\{self.script_name}")
         output_file = self.figure_output_dir / self.figure_id
 
+        res_dic = {
+            "figure_file": str(output_file),
+            "csv_file": str(self.process.csv_output().absolute())
+
+        }
+
+        if self.extra_args:
+            res_dic.update(self.extra_args)
+
+        json_args = json.dumps(res_dic)
+
         p = subprocess.Popen(
             ["Rscript", "--vanilla",
              script_r,
-             self.process.csv_output().absolute(),
-             output_file.absolute(),
-             extra],
+             json_args],
             cwd=os.getcwd(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
+
+        # p = subprocess.Popen(
+        #     ["Rscript", "--vanilla",
+        #      script_r,
+        #      self.process.csv_output().absolute(),
+        #      output_file.absolute(),
+        #      extra],
+        #     cwd=os.getcwd(),
+        #     stdin=subprocess.PIPE,
+        #     stdout=subprocess.PIPE,
+        #     stderr=subprocess.PIPE
+        # )
 
         output, error = p.communicate()
 

@@ -68,7 +68,7 @@ class MiceWeightFigure(RFigure):
 
     @property
     def figure_id(self) -> str:
-        return f"{self.process.result_id}"
+        return f"{self.process.result_id}.jpg"
 
     @property
     def extra_args(self) -> List[str]:
@@ -103,9 +103,10 @@ class OneStepSequence(Process):
 
 
         df_mice_loc = self.batch.mice_location.df
-
-        events['nb_mice'] = events.merge(df_mice_loc[['trans_group', f'nb_mice_{location}']], on='trans_group')[f'nb_mice_{location}'].values
-        events['nb_mice_next'] = events.merge(df_mice_loc[['trans_group', f'nb_mice_{location}']], right_on='trans_group', left_on='trans_group_next')[f'nb_mice_{location}'].values
+        tutu = df_mice_loc.groupby(["trans_group"]).size().to_frame('size')
+        tutu = tutu[tutu["size"] > 1]
+        events['nb_mice'] = events.merge(df_mice_loc[['trans_group', f'nb_mice_{location}']], how='left', on='trans_group')[f'nb_mice_{location}'].values
+        events['nb_mice_next'] = events.merge(df_mice_loc[['trans_group', f'nb_mice_{location}']], how='left', right_on='trans_group', left_on='trans_group_next')[f'nb_mice_{location}'].values
 
         return events
 

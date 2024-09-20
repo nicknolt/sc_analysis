@@ -19,12 +19,12 @@ class TestPreAnalysis(unittest.TestCase):
         config = Configuration(base_dir=Path('../../tests/resources'), result_dir=Path(r"C:\Users\Nicolas\Desktop\tmp"))
 
     def test_with_func(self):
-        res = one_step_sequence(batch_name="XP11", from_event=Action.TRANSITION).export_figure()
+        res = one_step_sequence(batch_name="XP11F2T", from_event=Action.TRANSITION).export_figure()
         # res = one_step_sequence(batch_name="XP11", from_event=Action.LEVER_PRESS).export_figure()
 
 
     def test_MiceWeight(self):
-        batch = Batch.load(batch_name="XP11")
+        batch = Batch.load(batch_name="XP11F2T")
 
         mice_weight = MiceWeight(batch)
         mice_weight.compute()

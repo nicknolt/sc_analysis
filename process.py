@@ -61,11 +61,14 @@ class Process:
 
             self.figure.export()
 
-            fig_files = list(self.figure.figure_output_dir.glob(pattern=f"{self.figure.figure_id}*.jpg"))
+            image = Image.open(self.figure.figure_output_dir / self.figure.figure_id)
+            image.show()
 
-            for fig in fig_files:
-                image = Image.open(fig)
-                image.show()
+            # fig_files = list(self.figure.figure_output_dir.glob(pattern=f"{self.figure.figure_id}"))
+            #
+            # for fig in fig_files:
+            #     image = Image.open(fig)
+            #     image.show()
 
         thread = Thread(target=run)
         thread.start()
@@ -143,8 +146,6 @@ class RFigure:
     def export(self):
 
         self.process.to_csv()
-
-        extra = str.join(',', self.extra_args) if self.extra_args else ''
 
         script_r = Path(f"..\..\scripts_R\{self.script_name}")
         output_file = self.figure_output_dir / self.figure_id

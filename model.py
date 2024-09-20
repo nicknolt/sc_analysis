@@ -23,7 +23,14 @@ class TransitionResolver:
         self._trans_df = experiment.transitions()
         self._mice_occupation = experiment.mice_location
 
-    def resolve(self, time: datetime.datetime):
+    def resolve(self):
+
+        df = self.experiment.transitions_error()
+
+        for idx, error_row in df.iterrows():
+            self._resolve(time=error_row.time)
+
+    def _resolve(self, time: datetime.datetime):
 
         df = self._trans_df
         error_trans = df[df['time'] == time]
@@ -33,15 +40,7 @@ class TransitionResolver:
 
         # get mice in from_dest when error is detected
         res_occup = self._mice_occupation.get_mice_location(time)
-
-        mouse_in_from_loc = list()
-
-        for key, value in res_occup.items():
-            if key == 'time':
-                continue
-
-            if value == from_dest:
-                mouse_in_from_loc.append(key)
+        mouse_in_from_loc = [key for key, value in res_occup.items() if value == from_dest]
 
         for mouse in mouse_in_from_loc:
             # get next transition
@@ -223,9 +222,9 @@ class PercentageCompleteSequence(Process):
 
 class Batch(Process):
 
-    def __init__(self, xp_name: str):
+    def __init__(self, batch_name: str):
         super().__init__()
-        self._xp_name = xp_name
+        self._batch_name = batch_name
 
         self.mice: List[str] = None
         self.mice_location: MiceLocation = None
@@ -234,7 +233,7 @@ class Batch(Process):
     @staticmethod
     def load(batch_name: str) -> 'Batch':
 
-        res = Batch(xp_name=batch_name)
+        res = Batch(batch_name=batch_name)
         res.compute()
 
         return res
@@ -304,6 +303,7 @@ class Batch(Process):
 
         # df = pd.read_csv(csv_file, dtype=dtype, sep=";", names=cols, header=None)
         df = pd.read_csv(StringIO(csv_str), dtype=dtype, sep=";", names=cols, header=None)
+        df[['day_since_start', 'trans_group']] = ''
 
         # format have changed btw experiment, we have to check the dateformat
         old_date_format = '%d-%m-%Y %H:%M:%S'
@@ -318,10 +318,48 @@ class Batch(Process):
         df['time'] = date
         df.sort_values(by='time', inplace=True)
 
-        self._add_days(df)
-        self._add_transition_interval(df)
+        self._find_transitions_error(df)
+        # self._df = df
+        #
+        # ml = MiceLocation(batch=self)
+        # ml.compute(force_recompute=True)
+
+        # self._resolve_transitions_error(df)
+
+
+        # self._add_days(df)
+        # self._add_transition_interval(df)
 
         return df
+
+    # def _resolve_transitions_error(self, df: pd.DataFrame):
+    #
+    #     self._df = df
+    #     ml = MiceLocation(batch=self)
+    #     ml.compute(force_recompute=True)
+    #     self.mice_location = ml
+    #
+    #     resolver = TransitionResolver(self)
+    #     resolver.resolve()
+    #
+    #     print("ok")
+    def _find_transitions_error(self, df: pd.DataFrame):
+
+        # reset error to empty
+        df.error = ''
+        transitions_df = df[df['action'] == 'transition'] #.reset_index(drop=True)
+
+        mice_list = transitions_df.rfid.unique()
+
+        for mouse in mice_list:
+
+            # detect error transitions
+            tmp_df = transitions_df[transitions_df['rfid'] == mouse]
+            tmp = tmp_df['to_loc'].shift(1)
+            tmp.iloc[0] = "BLACK_BOX"
+
+            idx_error = tmp_df[tmp_df['from_loc'] != tmp].index
+            df.loc[idx_error, 'error'] = "ERROR"
 
 
     def _add_transition_interval(self, df: pd.DataFrame):
@@ -341,9 +379,6 @@ class Batch(Process):
             return res
 
         df["trans_group"] = df.apply(get_num_trans_group, axis=1)
-
-
-
 
     def _add_days(self, df: pd.DataFrame):
 
@@ -366,7 +401,7 @@ class Batch(Process):
 
     @property
     def batch_name(self) -> str:
-        return self._xp_name
+        return self._batch_name
 
     def initialize(self):
 
@@ -391,7 +426,7 @@ class Batch(Process):
         # self.mice_sequence = ms
 
 
-    def validate(self) -> bool:
+    def validate(self):
 
         df = self.transitions_error()
 
@@ -399,11 +434,8 @@ class Batch(Process):
             return True
         else:
             resolver = TransitionResolver(self)
-            for row in df.itertuples():
-                time = row.time
-                resolver.resolve(time)
+            resolver.resolve()
 
-            # df could have changed after resolve
             df = self.transitions_error()
 
             self.logger.error(f"{len(df)} transition errors found")
@@ -412,6 +444,8 @@ class Batch(Process):
 
                 self.df.loc[index, 'error'] = ''
                 new_row = row.copy()
+                # susbstract 1 ms to keep transition consistent when sort by date
+                new_row.time -= pd.Timedelta(milliseconds=1)
                 new_row.device = 'correction'
                 new_row.from_loc = row.to_loc
                 new_row.to_loc = row.from_loc
@@ -422,14 +456,16 @@ class Batch(Process):
 
             self.df.sort_values(by='time', inplace=True, ignore_index=True)
 
+            # add extra info
+            self._add_transition_interval(self.df)
+            self._add_days(self.df)
+            self._add_transition_interval(self.df)
 
             # save after corrections
             self.save()
 
             # recompute mice occupation
             self.mice_location.compute(force_recompute=True)
-
-            return False
 
     @property
     def dtype(self) -> Dict:
@@ -460,7 +496,6 @@ class MiceLocation(Process):
     def _compute(self) -> pd.DataFrame:
 
         df = self.batch.df
-        df['error'] = ''
 
         transitions_df = df[df['action'] == 'transition'] #.reset_index(drop=True)
 
@@ -486,14 +521,6 @@ class MiceLocation(Process):
             last_known = "BLACK_BOX"
             res_df[mouse] = transitions_df.apply(find_location, args=(mouse,), axis=1)
 
-            # detect error transitions
-            tmp_df = transitions_df[transitions_df['rfid'] == mouse]
-            tmp = tmp_df['to_loc'].shift(1)
-            tmp.iloc[0] = "BLACK_BOX"
-
-            idx_error = tmp_df[tmp_df['from_loc'] != tmp].index
-            df.loc[idx_error, 'error'] = "ERROR"
-
         def get_nb_mice(row: pd.Series, location: str):
             locations = row.iloc[3:].values
             res = len([mouse_loc for mouse_loc in locations if mouse_loc == location])
@@ -507,7 +534,7 @@ class MiceLocation(Process):
 
         res_df["duration"] = - res_df.time.diff(periods=-1).dt.total_seconds()
 
-        self.batch.save()
+        # self.batch.save()
 
         return res_df
 
@@ -573,26 +600,23 @@ class MiceLocation(Process):
 
     def get_mouse_location(self, time: datetime, mouse: str, just_before: bool = False) -> str:
 
-        num_tail = 1
+        mice_location = self.get_mice_location(time, just_before)
+        return mice_location[mouse]
 
-        df = self._df
+    def get_mice_location(self, time: datetime, just_before: bool = False) -> Dict:
+
+        res = None
+
+        df = self.df
+        num_tail = 1
 
         if just_before:
             num_tail = 2
 
-        res = df.loc[df['time'] <= time].tail(num_tail).to_dict(orient='records')[0]
+        record = df.loc[df['time'] <= time].tail(num_tail)
 
-        return res[mouse]
-
-    def get_mice_location(self, time: datetime) -> Dict:
-
-        df = self._df
-
-        res = None
-
-        first_record = df.loc[df['time'] <= time].tail(1)
-        if len(first_record):
-            res = first_record.to_dict(orient='records')[0]
+        if len(record):
+            res = record[list(self.batch.mice)].to_dict(orient='records')[0]
 
         return res
 

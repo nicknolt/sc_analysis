@@ -77,15 +77,18 @@ class TestModel(unittest.TestCase):
         config = Configuration(base_dir=Path('./resources'))
         batch = Batch.load(batch_name="XP11")
 
-        batch.mice_location.compute(force_recompute=True)
-
-        print("ok")
+        # batch.mice_location.compute(force_recompute=True)
+        #
+        # print("ok")
 
 
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(batch_name="XP11")
+        batch = Batch(batch_name="XP11F2T")
 
+        batch.compute(force_recompute=True)
+
+        print("ok")
         # res = PercentageCompleteSequence(xp).compute(force_recompute=True)
 
 

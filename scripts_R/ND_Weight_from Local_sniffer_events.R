@@ -17,7 +17,9 @@ json_conf <- fromJSON(json)
 
 
 csv_file = toString(json_conf['csv_file'])
-figure_file = json_conf['figure_file']
+figure_file = toString(json_conf['figure_file'])
+
+print(figure_file)
 
 
 pdf(NULL)
@@ -139,5 +141,7 @@ ggplot(w_loss, aes(x = as.numeric(day_since_start), y = as.numeric(Pct_loss), co
   labs(x = "Jour", y = "% weight loss ") +
   #facet_wrap(~rfid, scales = "fixed") + #par souris ou sur le meme graphe
   theme_minimal()
+
+print(figure_file)
 
 ggsave(figure_file)

@@ -1,8 +1,11 @@
+import os
 from pathlib import Path
 from typing import List
 
 from common_log import create_logger
 
+# define the top dir of the project
+ROOT_DIR = Path(__file__).parent
 
 class FileMerger:
 

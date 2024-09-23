@@ -9,6 +9,7 @@ from typing import Dict, List
 import pandas as pd
 from PIL import Image
 
+from common import ROOT_DIR
 from common_log import create_logger
 from configuration import Configuration
 
@@ -147,7 +148,8 @@ class RFigure:
 
         self.process.to_csv()
 
-        script_r = Path(f"..\..\scripts_R\{self.script_name}")
+        script_r = ROOT_DIR / "scripts_R" / self.script_name
+
         output_file = self.figure_output_dir / self.figure_id
 
         res_dic = {

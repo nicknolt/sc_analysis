@@ -8,7 +8,7 @@ from model import Batch, OccupationTime
 
 import pandas as pd
 
-from pre_analysis.pre_analysis import Action
+from pre_analysis.pre_analysis import Action, MiceWeight
 
 
 class TestCecile(unittest.TestCase):
@@ -16,10 +16,21 @@ class TestCecile(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         basic_config_log()
+        config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC'), result_dir=Path('/Users/macminicv/Documents/Data_SC/SC_OUTPUT'))
+
+    def test_MiceWeight(self):
+        batch = Batch.load(batch_name="XP11")
+
+        mice_weight = MiceWeight(batch)
+        mice_weight.compute()
+
+        mice_weight.export_figure()
+
+        print("OK")
 
     def test_load_experiment(self):
         config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'))
-        xp = Batch.load(batch_name="XP11")
+        xp = Batch.load(batch_name="XP11F2T")
     def test_occupation_time_each_mouse(self):
         config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'))
         xp = Batch.load(batch_name="XP11")
@@ -33,7 +44,7 @@ class TestCecile(unittest.TestCase):
         import pre_analysis
         config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'))
 
-        res=pre_analysis.one_step_sequence("XP11", Action.TRANSITION)
+        res=pre_analysis.one_step_sequence("XP11F2T", Action.LEVER_PRESS)
         df = res.df
 
         print("ok")

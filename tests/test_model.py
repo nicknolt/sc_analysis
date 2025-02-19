@@ -31,10 +31,11 @@ class TestModel(unittest.TestCase):
 
 
     def test_transition_interval(self):
+        # XP11 have transition ERROR
         config = Configuration(base_dir=Path('./resources'))
         batch = Batch.load(batch_name="XP11")
 
-        df = batch.df
+        df = batch.compute(force_recompute=True)
 
         tmp = df.groupby('trans_group')['time'].transform('first')
 

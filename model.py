@@ -32,6 +32,7 @@ class TransitionResolver:
 
     def _resolve(self, time: datetime.datetime):
 
+        # resolve mouse swap (when mice are close to the antenna and a 'wrong' mouse as been identified instead of the real one)
         df = self._trans_df
         error_trans = df[df['time'] == time]
 
@@ -42,10 +43,11 @@ class TransitionResolver:
         res_occup = self._mice_occupation.get_mice_location(time)
         mouse_in_from_loc = [key for key, value in res_occup.items() if value == from_dest]
 
+        # we are looking for a transition ERROR in the candidate (mice in from dest at the moment of the transition error)
         for mouse in mouse_in_from_loc:
-            # get next transition
+            # filter by candidate mouse
             df_mouse = df[df['rfid'] == mouse]
-            # next trans
+            # get the next transition for this mouse
             next_trans_df = df_mouse[df_mouse['time'] > time]
 
             if next_trans_df.empty:
@@ -53,6 +55,8 @@ class TransitionResolver:
 
             next_trans_row = next_trans_df.iloc[0]
 
+            # if this is an error, it means that it should be an id swap, we could resolve it and mark
+            # the transition error as SWAP
             if next_trans_row.error == "ERROR":
 
                 self.logger.error(f"At time {time} mouse {error_row.rfid} is swapped with mouse {next_trans_row.rfid}")
@@ -226,8 +230,8 @@ class Batch(Process):
         super().__init__()
         self._batch_name = batch_name
 
-        self.mice: List[str] = None
-        self.mice_location: MiceLocation = None
+        self._mice: List[str] = None
+        self._mice_location: MiceLocation = None
         self.mice_sequence: MiceSequence = None
 
     @staticmethod
@@ -237,6 +241,26 @@ class Batch(Process):
         res.compute()
 
         return res
+
+    @property
+    def mice(self) -> List[str]:
+
+        if self._mice is None:
+            # extract mice ids
+            id_mice: set = set(self._df.rfid.unique())
+
+            id_mice = id_mice - {np.nan, '0', 'na'}
+            self._mice = id_mice
+
+        return self._mice
+
+    @property
+    def mice_location(self) -> 'MiceLocation':
+
+        if self._mice_location is None:
+            self._mice_location = MiceLocation(batch=self)
+
+        return self._mice_location
 
     def get_mice_occupation(self, location: str) -> 'MiceOccupation':
         return MiceOccupation(self.mice_location, location=location)
@@ -319,30 +343,18 @@ class Batch(Process):
         df.sort_values(by='time', inplace=True)
 
         self._find_transitions_error(df)
-        # self._df = df
-        #
-        # ml = MiceLocation(batch=self)
-        # ml.compute(force_recompute=True)
+        self._df = df
 
-        # self._resolve_transitions_error(df)
+        is_modified = self._transition_error_correction()
 
+        # add extra info
+        self._add_transition_interval(self.df)
+        self._add_days(self.df)
 
-        # self._add_days(df)
-        # self._add_transition_interval(df)
+        MiceLocation(batch=self).compute(force_recompute=True)
 
         return df
 
-    # def _resolve_transitions_error(self, df: pd.DataFrame):
-    #
-    #     self._df = df
-    #     ml = MiceLocation(batch=self)
-    #     ml.compute(force_recompute=True)
-    #     self.mice_location = ml
-    #
-    #     resolver = TransitionResolver(self)
-    #     resolver.resolve()
-    #
-    #     print("ok")
     def _find_transitions_error(self, df: pd.DataFrame):
 
         # reset error to empty
@@ -358,6 +370,8 @@ class Batch(Process):
             tmp = tmp_df['to_loc'].shift(1)
             tmp.iloc[0] = "BLACK_BOX"
 
+            # if the destination of the previous transition is different than the next transition origin
+            # need to mark the column in ERROR
             idx_error = tmp_df[tmp_df['from_loc'] != tmp].index
             df.loc[idx_error, 'error'] = "ERROR"
 
@@ -405,33 +419,26 @@ class Batch(Process):
 
     def initialize(self):
 
-        # extract mice ids
-        id_mice: set = set(self._df.rfid.unique())
-
-        id_mice = id_mice - {np.nan, '0', 'na'}
-        self.mice = id_mice
+        # # extract mice ids
+        # id_mice: set = set(self._df.rfid.unique())
+        #
+        # id_mice = id_mice - {np.nan, '0', 'na'}
+        # self.mice = id_mice
 
         # sort by time
         self.df['time'] = pd.to_datetime(self.df['time'], format='mixed')
-        self.df.sort_values(by='time', inplace=True)
 
-        mo = MiceLocation(batch=self)
-        mo.compute()
-        self.mice_location = mo
-
-        self.validate()
-
-        # ms = MiceSequence(batch=self)
-        # ms.compute()
-        # self.mice_sequence = ms
+        # mo = MiceLocation(batch=self)
+        # mo.compute()
+        # self._mice_location = mo
 
 
-    def validate(self):
+    def _transition_error_correction(self) -> bool:
 
         df = self.transitions_error()
 
         if df.empty:
-            return True
+            return False
         else:
             resolver = TransitionResolver(self)
             resolver.resolve()
@@ -442,30 +449,64 @@ class Batch(Process):
             for index, row in df.iterrows():
                 prev_loc = self.mice_location.get_mouse_location(time=row.time, mouse=row.rfid, just_before=True)
 
+                # we add 1ms before a "fake transition" from prev_loc to transition error from loc
                 self.df.loc[index, 'error'] = ''
                 new_row = row.copy()
                 # susbstract 1 ms to keep transition consistent when sort by date
                 new_row.time -= pd.Timedelta(milliseconds=1)
                 new_row.device = 'correction'
-                new_row.from_loc = row.to_loc
+                new_row.from_loc = prev_loc
                 new_row.to_loc = row.from_loc
                 new_row.error = 'CORRECTED'
 
                 self.df.loc[len(self.df)] = new_row
-                self.logger.error(f"RFID {row.rfid} date:{row.time} from:{row.from_loc} to:{row.to_loc} previously:{prev_loc}")
+                self.logger.error(
+                    f"RFID {row.rfid} date:{row.time} from:{row.from_loc} to:{row.to_loc} previously:{prev_loc}")
 
-            self.df.sort_values(by='time', inplace=True, ignore_index=True)
+            return True
+                # # save after corrections
+                # self.save()
 
-            # add extra info
-            self._add_transition_interval(self.df)
-            self._add_days(self.df)
-            self._add_transition_interval(self.df)
-
-            # save after corrections
-            self.save()
-
-            # recompute mice occupation
-            self.mice_location.compute(force_recompute=True)
+    # def validate(self):
+    #
+    #     # df = self.transitions_error()
+    #     #
+    #     # if df.empty:
+    #     #     return True
+    #     # else:
+    #     #     resolver = TransitionResolver(self)
+    #     #     resolver.resolve()
+    #     #
+    #     #     df = self.transitions_error()
+    #     #
+    #     #     self.logger.error(f"{len(df)} transition errors found")
+    #     #     for index, row in df.iterrows():
+    #     #         prev_loc = self.mice_location.get_mouse_location(time=row.time, mouse=row.rfid, just_before=True)
+    #     #
+    #     #         # we add 1ms before a "fake transition" from prev_loc to transition error from loc
+    #     #         self.df.loc[index, 'error'] = ''
+    #     #         new_row = row.copy()
+    #     #         # susbstract 1 ms to keep transition consistent when sort by date
+    #     #         new_row.time -= pd.Timedelta(milliseconds=1)
+    #     #         new_row.device = 'correction'
+    #     #         new_row.from_loc = prev_loc
+    #     #         new_row.to_loc = row.from_loc
+    #     #         new_row.error = 'CORRECTED'
+    #     #
+    #     #         self.df.loc[len(self.df)] = new_row
+    #     #         self.logger.error(f"RFID {row.rfid} date:{row.time} from:{row.from_loc} to:{row.to_loc} previously:{prev_loc}")
+    #
+    #         self.df.sort_values(by='time', inplace=True, ignore_index=True)
+    #
+    #         # add extra info
+    #         self._add_transition_interval(self.df)
+    #         self._add_days(self.df)
+    #
+    #         # save after corrections
+    #         self.save()
+    #
+    #         # recompute mice occupation
+    #         self.mice_location.compute(force_recompute=True)
 
     @property
     def dtype(self) -> Dict:
@@ -537,54 +578,6 @@ class MiceLocation(Process):
         # self.batch.save()
 
         return res_df
-
-
-    def _compute_old(self) -> pd.DataFrame:
-
-        df = self.batch.df
-
-        transitions_df = df[df['action'] == 'transition'] #.reset_index(drop=True)
-
-        mice = dict.fromkeys(transitions_df.rfid.unique(), "BLACK_BOX")
-
-        res_occup_list: List = list()
-        row_num = 0
-        for idx, row in transitions_df.iterrows():
-
-            rfid = row.rfid
-            from_loc = row.from_loc
-            to_loc = row.to_loc
-
-            prev_loc = mice[rfid]
-
-            if from_loc != prev_loc:
-
-                df.loc[idx, 'error'] = "ERROR"
-            else:
-                df.loc[idx, 'error'] = ""
-
-            # Last transition is considered as the new location even if there is an error
-            mice[rfid] = to_loc
-
-            # compute duration with next row
-
-            if (row_num+1) < len(transitions_df):
-                next_row_time = transitions_df.iloc[row_num+1].time
-                duration = (next_row_time - row.time).total_seconds()
-            else:
-                duration = 0
-
-            row_num += 1
-
-            row_occup_dict = {'time': row.time, 'day_since_start': row.day_since_start, 'duration': duration, **mice}
-            res_occup_list.append(row_occup_dict)
-
-        df_occupation = pd.DataFrame(res_occup_list)
-
-        # df of experimentation has been modified, need to save the new datas
-        self.batch.save()
-
-        return df_occupation
 
     @property
     def batch_name(self) -> str:

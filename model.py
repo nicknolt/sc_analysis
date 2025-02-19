@@ -345,7 +345,8 @@ class Batch(Process):
         self._find_transitions_error(df)
         self._df = df
 
-        is_modified = self._transition_error_correction()
+        self._transition_error_correction()
+
 
         # add extra info
         self._add_transition_interval(self.df)
@@ -462,6 +463,8 @@ class Batch(Process):
                 self.df.loc[len(self.df)] = new_row
                 self.logger.error(
                     f"RFID {row.rfid} date:{row.time} from:{row.from_loc} to:{row.to_loc} previously:{prev_loc}")
+
+            self._df.sort_values(by='time', inplace=True)
 
             return True
                 # # save after corrections

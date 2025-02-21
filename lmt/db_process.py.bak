@@ -1,0 +1,311 @@
+import re
+import sqlite3
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List
+
+import pandas as pd
+from dateutil.tz import tz
+from dependency_injector.wiring import inject, Provide
+
+from pseudo_lmt_analysis.common_log import create_logger
+from pseudo_lmt_analysis.container import Container
+from pseudo_lmt_analysis.data_service import DataService
+from pseudo_lmt_analysis.db_service import DBService
+from pseudo_lmt_analysis.process import BatchProcess, Batch, EventProcess
+
+import numpy as np
+
+
+class DBMetaInfoProcess(BatchProcess):
+    @inject
+    def __init__(self, batch: Batch, data_service: DataService = Provide[Container.data_service]):
+        super().__init__(batch)
+
+        self.data_service = data_service
+        self._db_info: DBFileInfoCollection = None
+
+    @property
+    def db_info(self) -> 'DBFileInfoCollection':
+
+        if self._db_info is None:
+            self.compute()
+
+        return self._db_info
+
+    @property
+    def result_id(self) -> str:
+        return f"{self.batch.batch_name}_db_meta_infos"
+
+    @property
+    def dtype(self) -> Dict:
+        pass
+
+    def _compute(self) -> pd.DataFrame:
+
+        list_file = self.data_service.get_sql_files(self.batch)
+        list_dbi = [_DBFileInfo(db_file) for db_file in list_file]
+
+        dbi_collection = DBFileInfoCollection(list_dbi)
+        df = dbi_collection.to_df()
+
+        return df
+
+    def initialize(self):
+        self._db_info = DBFileInfoCollection.from_df(self.df)
+        self._df["date_start"] = pd.to_datetime(self._df['date_start'])
+
+    def get_db_file(self, from_date: datetime, side: str, to_date: datetime = None) -> '_DBFileInfo':
+
+        dbi_list = [dbi for dbi in self.db_info.list_dbi if f'_{side}_' in dbi.filepath.name]
+
+        if to_date:
+            res = [dbi for dbi in dbi_list if (dbi.date_start <= from_date) and (dbi.date_end >= to_date)]
+        else:
+            res = [dbi for dbi in dbi_list if (dbi.date_start <= from_date) and (dbi.date_end >= from_date)]
+
+        if len(res) != 1:
+            self.logger.warning(f"Unable to find a database for comp {side}, from: {from_date} to date = {to_date}")
+            return None
+
+        return res[0]
+
+
+class DBFileInfoCollection:
+
+    def __init__(self, list_dbi: List['_DBFileInfo']):
+
+        self.list_dbi: List[_DBFileInfo] = list_dbi
+        self.list_dbi.sort(key=lambda x: x.date_start)
+
+    def to_df(self) -> pd.DataFrame:
+
+        list_dict = list()
+
+        for dbi in self.list_dbi:
+
+            dbi_dict = {
+                "filepath": dbi.filepath.absolute(),
+                "date_start": dbi.date_start.isoformat(timespec='milliseconds'),
+                "date_end": dbi.date_end.isoformat(timespec='milliseconds'),
+                "side": dbi.side,
+                "duration": dbi.duration
+            }
+
+            list_dict.append(dbi_dict)
+
+        df = pd.DataFrame(list_dict)
+
+        return df
+
+    @staticmethod
+    def from_df(df: pd.DataFrame) -> 'DBFileInfoCollection':
+
+        list_dbi: List[_DBFileInfo] = list()
+
+        for idx, row in df.iterrows():
+            dbi = _DBFileInfo(index=idx, filepath=Path(row.filepath), date_start=datetime.fromisoformat(row.date_start), date_end=datetime.fromisoformat(row.date_end))
+            list_dbi.append(dbi)
+
+        res = DBFileInfoCollection(list_dbi)
+
+        return res
+
+
+class _DBFileInfo:
+
+    def __init__(self, filepath: Path, date_start: datetime = None, date_end: datetime = None, index: int = None):
+
+        self.logger = create_logger(self)
+
+        self.filepath: Path = filepath
+        self.date_start: datetime = date_start
+        self.date_end: datetime = date_end
+        self.index: int = index
+        # self.side = re.search('.*_(?P<comp>[\w]{1})_.*', self.filepath.name)["comp"]
+
+        if date_start is None or date_end is None:
+            self.initialize()
+
+    @property
+    def duration(self) -> float:
+        return (self.date_end - self.date_start).total_seconds()/60/60
+
+    @property
+    def side(self) -> str:
+
+        res = re.search('.*_(?P<comp>[\w]{1})_.*', self.filepath.name)
+
+        if res is None:
+            err_msg = f"Unable to extract side from file:'{self.filepath}'"
+            raise Exception(err_msg)
+
+        return res["comp"]
+
+
+    def initialize(self):
+
+        self.logger.info(f"Load sql file:'{self.filepath}'")
+        connection = sqlite3.connect(self.filepath)
+        c = connection.cursor()
+
+        c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MIN(framenumber) FROM frame)')
+        row = c.fetchone()
+        self.date_start = datetime.fromtimestamp(row[0]/1000)
+
+        c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MAX(framenumber) FROM frame)')
+        row = c.fetchone()
+        self.date_end = datetime.fromtimestamp(row[0]/1000)
+
+        self.connexion = connection
+        c.close()
+        connection.close()
+
+        self.initialized = True
+
+
+class CheckShiftProcess(BatchProcess):
+
+    def __init__(self, batch: Batch):
+        super().__init__(batch)
+
+    @property
+    def result_id(self) -> str:
+        return f"{self.batch.batch_name}_check_shift"
+
+    @property
+    def dtype(self) -> Dict:
+        pass
+
+    def _compute(self) -> pd.DataFrame:
+
+        list_df: List[pd.DataFrame] = list()
+
+        p = DBMetaInfoProcess(batch=self.batch)
+        db_info = p.db_info
+
+        for dbi in db_info.list_dbi:
+
+            self.logger.info(f"Search for frame timestamp anomalies in:'{dbi.filepath}'")
+            connection = sqlite3.connect(dbi.filepath)
+
+            query = 'SELECT framenumber, timestamp FROM frame'
+
+            df = pd.read_sql_query(query, connection)
+            df["filepath"] = dbi.filepath
+            df["side"] = dbi.side
+            df["delta"] = df["TIMESTAMP"].shift(-1) - df["TIMESTAMP"]
+            df["date"] = pd.to_datetime(df["TIMESTAMP"], unit='ms', utc=True).dt.tz_convert(tz.tzlocal())
+
+            df = df[(df["delta"] < 20) | (df["delta"] > 100)]
+
+            list_df.append(df)
+
+            connection.close()
+
+        df = pd.concat(list_df)
+
+        return df
+
+
+class DBEventsInfoProcess(BatchProcess):
+
+    def __init__(self, batch: Batch):
+        super().__init__(batch)
+
+    @property
+    def result_id(self) -> str:
+        return f"{self.batch.batch_name}_db_events_info"
+
+    def _add_corresponding_frame(self, df: pd.DataFrame):
+
+        db_service = DBService()
+        res_df = db_service.get_corresponding_frame_number(batch_name=self.batch.batch_name, df_events=df)
+        df[["frame_number", "db_file"]] = df.merge(res_df, how="left", left_on="event_idx", right_on="event_idx")[["frame_number", "db_file"]]
+
+    def _add_db_idx(self, df: pd.DataFrame):
+
+        p_db = DBMetaInfoProcess(batch=self.batch)
+
+        def set_db(row: pd.Series) -> pd.Series:
+
+            dbi_file = p_db.get_db_file(from_date=row.time, side=row.side)
+
+            db_idx = -1
+            error = ''
+
+            if dbi_file:
+                db_idx = p_db.get_db_file(from_date=row.time, side=row.side).index
+            else:
+                error = "NO DB"
+
+            return pd.Series([db_idx, error])
+
+
+        df[["db_idx", "error"]] = df.apply(set_db, axis=1)
+        # df = df.apply(set_db, axis=1)
+
+    def _add_position(self, df: pd.DataFrame) -> pd.DataFrame:
+
+        db_service = DBService()
+
+        df_pos = db_service.get_position_info(batch_name=self.batch.batch_name, df_events=df)
+
+        res = df.merge(df_pos, how="left", left_on="event_idx", right_on="event_idx")
+        res.fillna("", inplace=True)
+
+        res['error'] = res.apply(lambda row: str(row.error_x) + str(row.error_y), axis=1)
+        res.drop(["error_x", "error_y"], axis=1, inplace=True)
+
+        return res
+
+
+    def _add_distance(self, df: pd.DataFrame) -> pd.DataFrame:
+
+        lever_coord = (105, 205)
+        nose_poke_coord = (415, 195)
+
+        def compute_dist(row: pd.Series) -> pd.Series:
+
+            # res = pd.Series()
+            row["dist_mass"] = -1
+            row["dist_front"] = -1
+
+            if row.error != "":
+                return row
+
+            if row.action == "id_lever":
+                target_coord = lever_coord
+            elif row.action == "nose_poke":
+                target_coord = nose_poke_coord
+            else:
+                return row
+
+            mass_coord = np.array((round(row.mass_x), round(row.mass_y)))
+            dist_mass = int(np.linalg.norm(mass_coord - target_coord))
+            row["dist_mass"] = dist_mass
+            row["dist_front"] = -1
+
+            if row.front_x != -1:
+                front_coord = np.array((round(row.front_x), round(row.front_y)))
+                dist_front = int(np.linalg.norm(front_coord - target_coord))
+                row["dist_front"] = dist_front
+
+            return row
+
+        df = df.apply(compute_dist, axis=1)
+
+        return df
+
+
+    def _compute(self) -> pd.DataFrame:
+
+        df_events = EventProcess(self.batch).df
+        res = pd.DataFrame().assign(event_idx=df_events.index, action=df_events.action, time=df_events.corrected_time, side=df_events.side)
+
+        self._add_db_idx(res)
+        self._add_corresponding_frame(res)
+        res = self._add_position(res)
+        res = self._add_distance(res)
+
+        return res

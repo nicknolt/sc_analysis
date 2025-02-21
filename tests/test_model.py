@@ -35,10 +35,11 @@ class TestModel(unittest.TestCase):
         config = Configuration(base_dir=Path('./resources'))
         batch = Batch.load(batch_name="XP11")
 
-        df = batch.compute(force_recompute=True)
+        df = batch.compute()
 
         tmp = df.groupby('trans_group')['time'].transform('first')
 
+        MiceSequence(batch=batch).compute(force_recompute=True)
         print("ok")
 
     def test_compute_cluster(self):

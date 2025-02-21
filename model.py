@@ -213,6 +213,7 @@ class PercentageCompleteSequence(Process):
         df["percent_complete_sequence"] = (df['nb_complete_sequence'] / df["total_per_day"])*100
 
         return df
+
     @property
     def batch_name(self) -> str:
         return self.batch.batch_name
@@ -289,10 +290,6 @@ class Batch(Process):
         return filtered
 
     @property
-    def df(self) -> pd.DataFrame:
-        return self._df
-
-    @property
     def result_id(self) -> str:
         return f"{self.batch_name}_events"
 
@@ -341,6 +338,7 @@ class Batch(Process):
 
         df['time'] = date
         df.sort_values(by='time', inplace=True)
+        df.reset_index(drop=True, inplace=True)
 
         self._find_transitions_error(df)
         self._df = df
@@ -349,7 +347,7 @@ class Batch(Process):
 
 
         # add extra info
-        self._add_transition_interval(self.df)
+        self._add_transition_groups(self.df)
         self._add_days(self.df)
 
         MiceLocation(batch=self).compute(force_recompute=True)
@@ -377,7 +375,7 @@ class Batch(Process):
             df.loc[idx_error, 'error'] = "ERROR"
 
 
-    def _add_transition_interval(self, df: pd.DataFrame):
+    def _add_transition_groups(self, df: pd.DataFrame):
 
         last_num_group = 0
 
@@ -465,51 +463,12 @@ class Batch(Process):
                     f"RFID {row.rfid} date:{row.time} from:{row.from_loc} to:{row.to_loc} previously:{prev_loc}")
 
             self._df.sort_values(by='time', inplace=True)
+            self._df.reset_index(drop=True, inplace=True)
 
             return True
                 # # save after corrections
                 # self.save()
 
-    # def validate(self):
-    #
-    #     # df = self.transitions_error()
-    #     #
-    #     # if df.empty:
-    #     #     return True
-    #     # else:
-    #     #     resolver = TransitionResolver(self)
-    #     #     resolver.resolve()
-    #     #
-    #     #     df = self.transitions_error()
-    #     #
-    #     #     self.logger.error(f"{len(df)} transition errors found")
-    #     #     for index, row in df.iterrows():
-    #     #         prev_loc = self.mice_location.get_mouse_location(time=row.time, mouse=row.rfid, just_before=True)
-    #     #
-    #     #         # we add 1ms before a "fake transition" from prev_loc to transition error from loc
-    #     #         self.df.loc[index, 'error'] = ''
-    #     #         new_row = row.copy()
-    #     #         # susbstract 1 ms to keep transition consistent when sort by date
-    #     #         new_row.time -= pd.Timedelta(milliseconds=1)
-    #     #         new_row.device = 'correction'
-    #     #         new_row.from_loc = prev_loc
-    #     #         new_row.to_loc = row.from_loc
-    #     #         new_row.error = 'CORRECTED'
-    #     #
-    #     #         self.df.loc[len(self.df)] = new_row
-    #     #         self.logger.error(f"RFID {row.rfid} date:{row.time} from:{row.from_loc} to:{row.to_loc} previously:{prev_loc}")
-    #
-    #         self.df.sort_values(by='time', inplace=True, ignore_index=True)
-    #
-    #         # add extra info
-    #         self._add_transition_interval(self.df)
-    #         self._add_days(self.df)
-    #
-    #         # save after corrections
-    #         self.save()
-    #
-    #         # recompute mice occupation
-    #         self.mice_location.compute(force_recompute=True)
 
     @property
     def dtype(self) -> Dict:
@@ -525,7 +484,7 @@ class MiceLocation(Process):
 
         super().__init__()
         self.batch = batch
-        self.mice_occupation: MiceOccupation = None
+        # self.mice_occupation: MiceOccupation = None
 
     @property
     def result_id(self) -> str:
@@ -563,6 +522,7 @@ class MiceLocation(Process):
 
         for mouse in mice_list:
             last_known = "BLACK_BOX"
+            # create and populate extra columns named by the rfid of all the mice
             res_df[mouse] = transitions_df.apply(find_location, args=(mouse,), axis=1)
 
         def get_nb_mice(row: pd.Series, location: str):
@@ -589,10 +549,10 @@ class MiceLocation(Process):
     def initialize(self):
         self._df['time'] = pd.to_datetime(self._df['time'], format='mixed')
 
-        mice_occupation = MiceOccupation(mice_location=self)
-        mice_occupation.compute()
-
-        self.mice_occupation = mice_occupation
+        # mice_occupation = MiceOccupation(mice_location=self)
+        # mice_occupation.compute()
+        #
+        # self.mice_occupation = mice_occupation
 
     def get_mouse_location(self, time: datetime, mouse: str, just_before: bool = False) -> str:
 
@@ -628,11 +588,12 @@ class MiceLocation(Process):
 
 class MiceOccupation(Process):
 
-    def __init__(self, mice_location: MiceLocation, location: str = "LMT"):
+    def __init__(self, batch: Batch, location: str = "LMT"):
         super().__init__()
 
-        self.mice_location = mice_location
+        # self.mice_location = mice_location
         self.location = location
+        self.batch = batch
 
     # def initialize(self):
     #     self._df['mice_comb'] = self._df['mice_comb'].astype(str)
@@ -650,7 +611,7 @@ class MiceOccupation(Process):
 
     def _compute(self) -> pd.DataFrame:
 
-        df = self.mice_location._df
+        df = MiceLocation(batch=self.batch).df
         mice = list(df.columns[3:])
 
         res_per_day: Dict[int, Dict[str, float]] = dict()
@@ -690,7 +651,7 @@ class MiceOccupation(Process):
 
     @property
     def batch_name(self) -> str:
-        return self.mice_location.batch_name
+        return self.batch.batch_name
 
 class MiceSequence(Process):
 
@@ -778,7 +739,8 @@ class OccupationTime(Process):
     def _compute(self) -> pd.DataFrame:
 
         xp = self.experiment
-        df = xp.mice_location.mice_occupation._df
+        df = MiceOccupation(batch=xp).df
+        # df = xp.mice_location.mice_occupation._df
 
         to_concat: List[pd.DataFrame] = list()
 

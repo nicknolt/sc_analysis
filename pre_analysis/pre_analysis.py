@@ -1,3 +1,4 @@
+import math
 from enum import Enum
 from typing import List, Dict
 
@@ -5,7 +6,7 @@ import pandas as pd
 
 from model import Batch
 from process import Process, RFigure
-
+import numpy as np
 
 def one_step_sequence(batch_name: str, from_event: 'Action') -> 'OneStepSequence':
 
@@ -18,6 +19,49 @@ def one_step_sequence(batch_name: str, from_event: 'Action') -> 'OneStepSequence
 class Action(Enum):
     TRANSITION = 1,
     LEVER_PRESS = 2
+
+
+class FeederTimeDistribution(Process):
+
+    def __init__(self, batch: Batch):
+        super().__init__()
+        self.batch = batch
+
+    @property
+    def result_id(self) -> str:
+        return f"{self.batch_name}_feeder_time_distribution"
+
+    def _compute(self) -> pd.DataFrame:
+        df = self.batch.df
+        df_lever = df[df['action'] == 'id_lever']
+        df_feeder = df[df['action'] == 'feeder']
+
+        df_lever['idx_next'] = df_lever.index.to_series().shift(-1)
+
+        def get_delta_t(row: pd.Series):
+            nonlocal df_feeder
+
+            # bc of possible unexpected repetition of feeder event
+            # print(f"where < {row.idx_next} and > {row.name}")
+            res = np.where((df_feeder.index < row.idx_next) & (df_feeder.index > row.name), df_feeder.index, row.idx_next).min()
+
+            # to exclude
+            if res == row.idx_next or math.isnan(res):
+                return -1
+
+            feeder_row = df_feeder.loc[res]
+            delta = (feeder_row.time - row.time).total_seconds()
+
+            return delta
+
+        df_lever['delta'] = df_lever.apply(get_delta_t, axis=1)
+
+        return df_lever
+
+
+    @property
+    def batch_name(self) -> str:
+        return self.batch.batch_name
 
 
 class OneStepSequenceFigure(RFigure):

@@ -1,0 +1,204 @@
+import asyncio
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Tuple, List
+
+import aiosqlite
+import numpy as np
+import pandas as pd
+from aiosqlite import Connection
+from dateutil.tz import tzlocal
+from pandas import Timestamp
+
+from pseudo_lmt_analysis.common_log import create_logger
+# from pseudo_lmt_analysis.db_process import DBMetaInfoProcess
+# from pseudo_lmt_analysis.db_process import DBMetaInfoProcess
+from pseudo_lmt_analysis.process import Batch
+
+
+class DBService:
+
+    def __init__(self): # add batch name in parameter?
+        self.logger = create_logger(self)
+
+    async def _get_corresponding_frame_number_per_event(self, start_date: pd.Timestamp, connection, date: pd.Timestamp, tmp_db_name: str) -> int:
+
+        # tmp_db_name = tmp_db_name.split('\\')[-2:]
+        # every 500 frames (1650 ms) LMT recording delay the next frame for 220 ms
+        delta_t = (date - start_date).total_seconds()
+        expected_frame = int(delta_t * 30)
+
+        # delay = (delta_t * 0.22) / 1.65
+        #
+        # expected_frame = np.round((delta_t - delay) * 30)
+        # connection = sqlite3.connect(dbi.filepath)
+        # await connection.set_trace_callback(print)
+
+        c = await connection.cursor()
+        search_offset = 10000
+
+
+        # pd.Timestamp to timestamp give local tz date as a GMT date, it is a wrong behavior (tested with older pandas version always the same results ...)
+        # convert timestamp to python datetime and convert it to timestamp give the expected value
+        from_date_ts = date.to_pydatetime().timestamp() * 1000
+
+        # code to test this different behavior
+        # tutu = date.timestamp() * 1000
+        # diff = abs(tutu - from_date_ts)
+        if expected_frame < 0:
+            raise Exception(f"Expected frame should be positive ({expected_frame})")
+
+        await c.execute(
+            f'SELECT framenumber, timestamp FROM frame WHERE framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame} ORDER BY ABS(? - timestamp) ASC LIMIT 1',
+            (from_date_ts,))
+
+        # c.execute(
+        #     f'SELECT framenumber, timestamp FROM frame WHERE framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame + search_offset} ORDER BY ABS(? - timestamp) ASC LIMIT 1',
+        #     (from_date_ts,))
+        row = await c.fetchone()
+
+        if row is None:
+            self.logger.warning(f"Frame number not found for date {date} of timestamp {from_date_ts} expected frame {expected_frame}")
+            return None
+
+        delta_s = (row[1] - from_date_ts) / 1000.0
+        if abs(delta_s) > 1:
+            err_msg = f"Accurate frame has not been found for db:\n'{tmp_db_name}' date {date} of timestamp {from_date_ts} expected frame {expected_frame}. Closest is {delta_s} s after with frame {row[0]}"
+            raise Exception(err_msg)
+
+        return row[0]
+
+    async def _get_corresponding_frame_number_per_db_group(self, db_info: pd.Series, df_events: pd.DataFrame) -> pd.DataFrame:
+        self.logger.debug(f"ASYNC deal with {db_info.filepath}")
+
+        connection = await aiosqlite.connect(db_info.filepath)
+        # connection = sqlite3.connect(db_file)
+        # connection.set_trace_callback(print)
+        res = list()
+
+        for idx, row in df_events.iterrows():
+
+            if row.error != '':
+                num_frame = -1
+            else:
+                num_frame = await self._get_corresponding_frame_number_per_event(start_date=db_info.date_start, connection=connection,
+                                                              date=row.time, tmp_db_name=db_info.filepath)
+
+            short_db = db_info.filepath.split('\\')[-2:]
+
+            res.append(
+                {
+                    'event_idx': idx,
+                    'frame_number': num_frame,
+                    'db_file': str.join('\\', short_db),
+                }
+            )
+
+        return pd.DataFrame(res)
+
+
+    async def _get_corresponding_frame_number(self, batch_name: str, df_events: pd.DataFrame) -> pd.DataFrame:
+
+        from pseudo_lmt_analysis.db_process import DBMetaInfoProcess
+
+        p = DBMetaInfoProcess(Batch(batch_name))
+        grouped = df_events.groupby('db_idx')
+
+        tasks = list()
+
+        for db_idx, group in grouped:
+
+            if db_idx == -1:
+                continue
+
+            db_info = p.df.iloc[int(db_idx)]
+            task = asyncio.create_task(self._get_corresponding_frame_number_per_db_group(db_info, group))
+            tasks.append(task)
+
+        await asyncio.gather(*tasks)
+
+        results = [res.result() for res in tasks]
+
+        res = pd.concat(results)
+
+        return res
+
+    async def _get_position_per_event(self, event_idx: int, db_file: str, connection: Connection, frame_number: int) -> pd.Series:
+
+        c = await connection.cursor()
+
+        field_names = "framenumber,mass_x,mass_y,front_x,front_y"
+        # print(f"{frame_number}")
+        await c.execute(
+            f'SELECT {field_names} FROM DETECTION WHERE FRAMENUMBER == ?',
+            (frame_number,))
+
+        row = await c.fetchone()
+
+        if row is None:
+            row = (frame_number, 0, 0, 0, 0)
+            status = 'MISSING'
+            self.logger.warning(f"no row for db :'{db_file}' and frame number {frame_number}")
+        else:
+            status = ''
+
+        row = list(row)
+
+        fields = [*field_names.split(','), 'event_idx', 'error']
+        data = zip(fields, [*row, event_idx, status])
+        res = pd.Series(dict(data))
+
+        return res
+
+    async def _get_position_per_group(self, db_info: pd.Series, df_events: pd.DataFrame):
+
+        self.logger.info(f"ASYNC deal with {db_info.filepath}")
+
+        connection = await aiosqlite.connect(db_info.filepath)
+        # connection = sqlite3.connect(db_file)
+        # await connection.set_trace_callback(print)
+
+        res = list()
+
+        for idx, row in df_events.iterrows():
+
+            if row.error != '':
+                continue
+
+            tmp_res = await self._get_position_per_event(event_idx=row.event_idx, db_file=db_info.filepath, connection=connection, frame_number=row.frame_number)
+            res.append(tmp_res)
+
+        return pd.DataFrame(res)
+
+    async def _get_position_info(self, batch_name: str, df_events: pd.DataFrame):
+
+        from pseudo_lmt_analysis.db_process import DBMetaInfoProcess
+        p = DBMetaInfoProcess(Batch(batch_name))
+        grouped = df_events.groupby('db_idx')
+
+        tasks = list()
+        for db_idx, group in grouped:
+
+            db_info = p.df.iloc[int(db_idx)]
+            task = asyncio.create_task(self._get_position_per_group(db_info, group))
+            tasks.append(task)
+
+        await asyncio.gather(*tasks)
+        results = [res.result() for res in tasks]
+        res = pd.concat(results)
+
+        return res
+
+    def get_position_info(self, batch_name: str, df_events: pd.DataFrame):
+
+        def run_async():
+            return asyncio.run(self._get_position_info(batch_name, df_events))
+
+        return run_async()
+
+    def get_corresponding_frame_number(self, batch_name: str, df_events: pd.DataFrame) -> pd.DataFrame:
+
+        def run_async():
+            return asyncio.run(self._get_corresponding_frame_number(batch_name, df_events))
+
+        return run_async()

@@ -29,7 +29,7 @@ class TestPreAnalysis(unittest.TestCase):
 
         df = MiceSequence(batch=batch).df
 
-        df.drop(df[(df.day_since_start > 21) | (df.elapsed_s > 20) | (df.nb_mice_np != 1)].index, inplace=True)
+        df.drop(df[(df.day_since_start > 21) | (df.elapsed_s > 20) | (df.nb_mice_np == 1)].index, inplace=True)
         df = df[(df.rfid_lp == df.rfid_np)]
 
         print(df['elapsed_s'].describe())

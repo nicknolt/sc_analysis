@@ -4,13 +4,13 @@ from typing import List, Dict
 
 import pandas as pd
 
-from model import Batch
+from model import ImportBatch
 from process import Process, RFigure
 import numpy as np
 
 def one_step_sequence(batch_name: str, from_event: 'Action') -> 'OneStepSequence':
 
-    batch = Batch.load(batch_name=batch_name)
+    batch = ImportBatch.load(batch_name=batch_name)
     res = OneStepSequence(batch=batch, from_event=from_event)
     res.compute()
 
@@ -20,10 +20,20 @@ class Action(Enum):
     TRANSITION = 1,
     LEVER_PRESS = 2
 
+class LinkXP2DB(Process):
+
+    def __init__(self):
+        super().__init__()
+
+    @property
+    def result_id(self) -> str:
+        return f"db_link"
+
+    
 
 class FeederTimeDistribution(Process):
 
-    def __init__(self, batch: Batch):
+    def __init__(self, batch: ImportBatch):
         super().__init__()
         self.batch = batch
 
@@ -79,7 +89,7 @@ class OneStepSequenceFigure(RFigure):
 
 class MiceWeight(Process):
 
-    def __init__(self, batch: Batch):
+    def __init__(self, batch: ImportBatch):
         super().__init__()
         self.batch = batch
 
@@ -121,7 +131,7 @@ class MiceWeightFigure(RFigure):
 
 class OneStepSequence(Process):
 
-    def __init__(self, batch: Batch, from_event: Action):
+    def __init__(self, batch: ImportBatch, from_event: Action):
         super().__init__()
         self.batch = batch
         self.from_event = from_event

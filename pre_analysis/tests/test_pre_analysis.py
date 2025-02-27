@@ -4,7 +4,7 @@ from time import sleep
 
 from common_log import basic_config_log
 from configuration import Configuration
-from model import Batch, MiceSequence
+from model import ImportBatch, MiceSequence
 # from pre_analysis.pre_analysis import OneStepSequence, Action
 import pre_analysis
 from pre_analysis import one_step_sequence
@@ -25,7 +25,7 @@ class TestPreAnalysis(unittest.TestCase):
 
     def test_distribution_complete_seq(self):
         batch_name = "XP11"
-        batch = Batch(batch_name=batch_name)
+        batch = ImportBatch(batch_name=batch_name)
 
         df = MiceSequence(batch=batch).df
 
@@ -50,7 +50,7 @@ class TestPreAnalysis(unittest.TestCase):
     def test_feeder_time_distribution(self):
 
         batch_name = "SC1_14_17"
-        batch = Batch(batch_name=batch_name)
+        batch = ImportBatch(batch_name=batch_name)
 
         df = FeederTimeDistribution(batch=batch).compute(force_recompute=True)
         print(df['delta'].describe())
@@ -69,7 +69,7 @@ class TestPreAnalysis(unittest.TestCase):
 
 
     def test_MiceWeight(self):
-        batch = Batch.load(batch_name="XP11F2T")
+        batch = ImportBatch.load(batch_name="XP11F2T")
 
         mice_weight = MiceWeight(batch)
         mice_weight.compute()
@@ -85,7 +85,7 @@ class TestPreAnalysis(unittest.TestCase):
         # res = one_step_sequence(batch_name="XP11", from_event=Action.TRANSITION)
         #
         # res.to_csv()
-        xp = Batch.load(batch_name="XP11")
+        xp = ImportBatch.load(batch_name="XP11")
 
         res = OneStepSequence(batch=xp, from_event=Action.LEVER_PRESS)
         res_comp = res.compute(force_recompute=True)
@@ -93,7 +93,7 @@ class TestPreAnalysis(unittest.TestCase):
         print("ok")
 
     def test_figure(self):
-        xp = Batch.load(batch_name="XP11")
+        xp = ImportBatch.load(batch_name="XP11")
 
         res = OneStepSequence(batch=xp, from_event=Action.LEVER_PRESS)
         res.export_figure()

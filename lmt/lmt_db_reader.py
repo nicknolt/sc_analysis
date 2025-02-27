@@ -57,17 +57,10 @@ class LMTDBReader:
 
         connection = sqlite3.connect(self.db_path)
 
-        # tmp_db_name = tmp_db_name.split('\\')[-2:]
         # every 500 frames (1650 ms) LMT recording delay the next frame for 220 ms
         delta_t = (date - self.date_start).total_seconds()
 
         expected_frame = int(delta_t * 30)
-
-        # # delay = (delta_t * 0.22) / 1.65
-        # #
-        # # expected_frame = np.round((delta_t - delay) * 30)
-        # # connection = sqlite3.connect(dbi.filepath)
-        # # await connection.set_trace_callback(print)
 
         c = connection.cursor()
         search_offset = 10000
@@ -84,19 +77,18 @@ class LMTDBReader:
             f'SELECT framenumber, timestamp FROM frame WHERE framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame} ORDER BY ABS(? - timestamp) ASC LIMIT 1',
             (from_date_ts,))
 
-        # c.execute(
-        #     f'SELECT framenumber, timestamp FROM frame WHERE framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame + search_offset} ORDER BY ABS(? - timestamp) ASC LIMIT 1',
-        #     (from_date_ts,))
         row = c.fetchone()
 
         if row is None:
             self.logger.warning(f"Frame number not found for date {date} of timestamp {from_date_ts} expected frame {expected_frame}")
             return None
         #
-        delta_s = (row[1] - from_date_ts) / 1000.0
-        if abs(delta_s) > 1:
-            err_msg = f"Accurate frame has not been found for db:\n'{tmp_db_name}' date {date} of timestamp {from_date_ts} expected frame {expected_frame}. Closest is {delta_s} s after with frame {row[0]}"
-            raise Exception(err_msg)
+
+        # delta_s = (row[1] - from_date_ts) / 1000.0
+
+        # if abs(delta_s) > 1:
+        #     err_msg = f"Accurate frame has not been found for db:\n'{tmp_db_name}' date {date} of timestamp {from_date_ts} expected frame {expected_frame}. Closest is {delta_s} s after with frame {row[0]}"
+        #     raise Exception(err_msg)
 
         return row[0]
 

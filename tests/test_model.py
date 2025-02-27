@@ -1,26 +1,27 @@
-import datetime
+import os
 import os
 import subprocess
 import unittest
 from pathlib import Path
-from typing import Dict, Set, List
-
-from PIL import Image
-from dateutil.tz import tzlocal
-
-from common import FileMerger
-from common_log import basic_config_log
-from configuration import Configuration
-from model import Batch, MiceOccupation, MiceSequence, OccupationTime, Experiment, PercentageCompleteSequence
+from typing import Dict
 
 import pandas as pd
+
+from common import FileMerger, ROOT_DIR
+from common_log import basic_config_log
+from container import Container
+from model import ImportBatch, MiceSequence, OccupationTime, Experiment
+
+container = Container()
+# container.wire(modules=["pseudo_lmt_analysis.process"])
+container.config.from_ini(ROOT_DIR / "tests/resources/config.ini")
 
 class TestModel(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         basic_config_log()
-        config = Configuration(base_dir=Path('./resources'), result_dir=Path(r"C:\Users\Nicolas\Desktop\tmp\SC_OUTPUT"))
+        # config = Configuration(base_dir=Path('./resources'), result_dir=Path(r"C:\Users\Nicolas\Desktop\tmp\SC_OUTPUT"))
 
     # def test_iso_format(self):
     #     date_str = "2024-09-06T16:32:14.723+02:00"
@@ -32,8 +33,8 @@ class TestModel(unittest.TestCase):
 
     def test_transition_interval(self):
         # XP11 have transition ERROR
-        config = Configuration(base_dir=Path('./resources'))
-        batch = Batch.load(batch_name="XP11")
+        # config = Configuration(base_dir=Path('./resources'))
+        batch = ImportBatch.load(batch_name="XP11")
 
         df = batch.compute()
 
@@ -77,7 +78,7 @@ class TestModel(unittest.TestCase):
 
     def test_mice_location_compute(self):
         config = Configuration(base_dir=Path('./resources'))
-        batch = Batch.load(batch_name="XP11")
+        batch = ImportBatch.load(batch_name="XP11")
 
         # batch.mice_location.compute(force_recompute=True)
         #
@@ -85,8 +86,8 @@ class TestModel(unittest.TestCase):
 
 
     def test_load_experiment(self):
-        config = Configuration(base_dir=Path('./resources'))
-        batch = Batch(batch_name="XP11F2T")
+        # config = Configuration(base_dir=Path('./resources'))
+        batch = ImportBatch(batch_name="XP11F2T")
 
         batch.compute(force_recompute=True)
 
@@ -105,7 +106,7 @@ class TestModel(unittest.TestCase):
         # https://stackoverflow.com/questions/23377108/pandas-percentage-of-total-with-groupby
 
         config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(batch_name="XP11")
+        xp = ImportBatch.load(batch_name="XP11")
 
         df = xp.lever_press()
 
@@ -125,7 +126,7 @@ class TestModel(unittest.TestCase):
 
     def test_compute_sequences(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(batch_name="XP11")
+        xp = ImportBatch.load(batch_name="XP11")
 
         ms = MiceSequence(xp)
         res = ms.compute(force_recompute=True)
@@ -163,7 +164,7 @@ class TestModel(unittest.TestCase):
 
     def test_occupation_time_each_mouse(self):
         config = Configuration(base_dir=Path('./resources'))
-        xp = Batch.load(batch_name="XP11")
+        xp = ImportBatch.load(batch_name="XP11")
 
         ot = OccupationTime(experiment=xp)
 
@@ -182,7 +183,7 @@ class TestModel(unittest.TestCase):
 
         config = Configuration(base_dir=Path('./resources'))
 
-        xp = Batch.load('XP9')
+        xp = ImportBatch.load('XP9')
         mo = xp.mice_location
 
         mice = list(mo._df.columns[3:])

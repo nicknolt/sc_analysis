@@ -1,22 +1,21 @@
 import datetime
-import os
 from datetime import timedelta
 from io import StringIO
 from typing import List, Dict
 
-from common import FileMerger
-from common_log import create_logger
-from configuration import Configuration
 import numpy as np
-
 import pandas as pd
+from dependency_injector.wiring import inject, Provide
 
+from common_log import create_logger
+from container import Container
+from data_repository import DataService
 from process import Process
 
 
 class TransitionResolver:
 
-    def __init__(self, experiment: 'Batch'):
+    def __init__(self, experiment: 'ImportBatch'):
         self.logger = create_logger(self)
         self.experiment = experiment
 
@@ -105,7 +104,7 @@ class GlobalPercentageLeverPressed(Process):
         list_df: List[pd.DataFrame] = list()
 
         for batch_name in batche_names:
-            batch = Batch.load(batch_name)
+            batch = ImportBatch.load(batch_name)
             df = batch.get_percentage_lever_pressed().df
             df['batch'] = batch_name
 
@@ -141,7 +140,7 @@ class GlobalPercentageCompleteSequence(Process):
         list_df: List[pd.DataFrame] = list()
 
         for batch_name in batche_names:
-            batch = Batch.load(batch_name)
+            batch = ImportBatch.load(batch_name)
             df = batch.get_percentage_complete_sequence().df
             df['batch'] = batch_name
 
@@ -162,7 +161,7 @@ class GlobalPercentageCompleteSequence(Process):
 
 class PercentageLeverPressed(Process):
 
-    def __init__(self, batch: 'Batch'):
+    def __init__(self, batch: 'ImportBatch'):
         super().__init__()
         self.batch = batch
 
@@ -192,7 +191,7 @@ class PercentageLeverPressed(Process):
 
 class PercentageCompleteSequence(Process):
 
-    def __init__(self, batch: 'Batch'):
+    def __init__(self, batch: 'ImportBatch'):
         super().__init__()
         self.batch = batch
 
@@ -225,9 +224,10 @@ class PercentageCompleteSequence(Process):
         }
 
 
-class Batch(Process):
+class ImportBatch(Process):
 
-    def __init__(self, batch_name: str):
+    @inject
+    def __init__(self, batch_name: str, data_service: DataService = Provide[Container.data_service]):
         super().__init__()
         self._batch_name = batch_name
 
@@ -235,10 +235,12 @@ class Batch(Process):
         self._mice_location: MiceLocation = None
         self.mice_sequence: MiceSequence = None
 
-    @staticmethod
-    def load(batch_name: str) -> 'Batch':
+        self._data_service = data_service
 
-        res = Batch(batch_name=batch_name)
+    @staticmethod
+    def load(batch_name: str) -> 'ImportBatch':
+
+        res = ImportBatch(batch_name=batch_name)
         res.compute()
 
         return res
@@ -295,13 +297,7 @@ class Batch(Process):
 
     def _compute(self) -> pd.DataFrame:
 
-        base_dir = Configuration().get_base_dir()
-        data_dir = base_dir / "data" / self.batch_name
-
-        csv_file = list(data_dir.glob("*.csv"))
-        csv_file.sort(key=os.path.getmtime)
-        file_merger = FileMerger(csv_file)
-        csv_str = file_merger.merge()
+        csv_str = self._data_service.get_csv_data(batch_name=self._batch_name)
 
         cols = [
             'action',
@@ -480,7 +476,7 @@ class Batch(Process):
 
 class MiceLocation(Process):
 
-    def __init__(self, batch: Batch):
+    def __init__(self, batch: ImportBatch):
 
         super().__init__()
         self.batch = batch
@@ -588,7 +584,7 @@ class MiceLocation(Process):
 
 class MiceOccupation(Process):
 
-    def __init__(self, batch: Batch, location: str = "LMT"):
+    def __init__(self, batch: ImportBatch, location: str = "LMT"):
         super().__init__()
 
         # self.mice_location = mice_location
@@ -655,21 +651,23 @@ class MiceOccupation(Process):
 
 class MiceSequence(Process):
 
-    def __init__(self, batch: Batch):
+    def __init__(self, batch: ImportBatch):
         super().__init__()
 
         self.batch = batch
 
     @property
     def result_id(self) -> str:
-        max_delay = Configuration().max_delay_complete_sequence
+
+        max_delay = self.parameters.max_sequence_duration
+        # max_delay = Configuration().max_delay_complete_sequence
         return f"{self.batch_name}_{max_delay}_sequences"
 
     def _compute(self) -> pd.DataFrame:
 
         res_global: List = list()
 
-        max_delay = Configuration().max_delay_complete_sequence
+        max_delay = self.parameters.max_sequence_duration
 
         res_sequence: Dict = None
 
@@ -728,7 +726,7 @@ class MiceSequence(Process):
 
 class OccupationTime(Process):
 
-    def __init__(self, experiment: Batch):
+    def __init__(self, experiment: ImportBatch):
         super().__init__()
         self.experiment = experiment
 

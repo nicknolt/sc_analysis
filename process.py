@@ -3,124 +3,188 @@ import os
 import subprocess
 from abc import abstractmethod
 from pathlib import Path
-from threading import Thread
-from typing import Dict, List
+from typing import Dict, TYPE_CHECKING
 
 import pandas as pd
-from PIL import Image
+from dependency_injector.wiring import inject, Provide
+
 
 from common import ROOT_DIR
 from common_log import create_logger
-from configuration import Configuration
+from container import Container
+from parameters import Parameters
 
+if TYPE_CHECKING:
+    from cache_repository import CacheRepository
 
 class Process:
 
-    def __init__(self):
+    # @inject
+    # def __init__(self, data_service: DataService = Provide[Container.data_service]):
+    @inject
+    def __init__(self, parameters: Parameters = Provide[Container.parameters]):
+
         self.logger = create_logger(self)
         self._df: pd.DataFrame = None
-
-        self.figure: RFigure = None
-
-    def compute(self, force_recompute: bool = False) -> pd.DataFrame:
-
-        base_dir = Configuration().get_base_dir()
-        cache_dir = base_dir / "cache" / self.batch_name
-
-        cache_file = cache_dir / f"{self.result_id}.csv"
-
-        self.logger.info(f"Search result for {self.result_id}")
-        if not cache_dir.exists():
-            cache_dir.mkdir(parents=True)
-
-        if cache_file.exists() and not force_recompute:
-            self.logger.info(f"'{self.result_id}' is loaded from cache")
-            df = pd.read_csv(cache_file, dtype=self.dtype, index_col=0)
-            self._df = df
-        else:
-
-            self.logger.info(f"Compute {self.result_id}")
-            df = self._compute()
-            self.logger.info(f"End Compute {self.result_id}")
-            self._df = df
-            self.save()
-            # df.to_csv(cache_file)
-
-        self.initialize()
-
-        return df
-
-    def save(self):
-        base_dir = Configuration().get_base_dir()
-        cache_dir = base_dir / "cache" / self.batch_name
-        cache_file = cache_dir / f"{self.result_id}.csv"
-
-        self._df.to_csv(cache_file)
-
-    def export_figure(self):
-        def run():
-
-            self.figure.export()
-
-            image = Image.open(self.figure.figure_output_dir / self.figure.figure_id)
-            image.show()
-
-            # fig_files = list(self.figure.figure_output_dir.glob(pattern=f"{self.figure.figure_id}"))
-            #
-            # for fig in fig_files:
-            #     image = Image.open(fig)
-            #     image.show()
-
-        thread = Thread(target=run)
-        thread.start()
-
-    def csv_output(self) -> Path:
-        return Path(Configuration().result_dir / f"{self.result_id}.csv")
-
-    def to_csv(self):
-
-        if not Configuration().result_dir.exists():
-            Configuration().result_dir.mkdir(parents=True)
-
-        self.df.to_csv(self.csv_output())
-
-    @property
-    def df(self) -> pd.DataFrame:
-        if self._df is None:
-            self._df = self.compute()
-
-        return self._df
+        self.parameters: Parameters = parameters
 
     @property
     @abstractmethod
     def result_id(self) -> str:
         pass
 
+    @property
+    @abstractmethod
+    def dtype(self) -> Dict:
+        pass
+
+    @property
+    def df(self) -> pd.DataFrame:
+        if self._df is None:
+            self.compute()
+
+        return self._df
+
+    @inject
+    def compute(self, force_recompute: bool = False, cache_repo: 'CacheRepository' = Provide[Container.cache_repository]) -> pd.DataFrame:
+
+        res = cache_repo.load(self)
+
+        if res is not None and not force_recompute:
+            self._df = res
+        else:
+            self._df = self._compute()
+            self.save()
+
+        self.initialize()
+
+        return self.df
+
+    @inject
+    def save(self, cache_repo: 'CacheRepository' = Provide[Container.cache_repository]):
+        cache_repo.save(self)
+
     @abstractmethod
     def _compute(self) -> pd.DataFrame:
         pass
 
-    @property
-    @abstractmethod
-    def batch_name(self) -> str:
-        pass
-
-    @property
-    def dtype(self) -> Dict:
-        return {
-            'rfid_lp': 'string',
-            'rfid_np': 'string'
-        }
-
     def initialize(self):
         pass
 
-    # @staticmethod
-    # def delete_cache(xp_name: str):
-    #     base_dir = Configuration().get_base_dir()
-    #     cache_dir = base_dir / "cache" / xp_name
-    #
-    #     rmtree(cache_dir)
+class BatchProcess(Process):
+
+    def __init__(self, batch_name: str):
+        super().__init__()
+        self.batch_name = batch_name
+
+
+# class Process:
+#
+#     def __init__(self):
+#         self.logger = create_logger(self)
+#         self._df: pd.DataFrame = None
+#
+#         self.figure: RFigure = None
+#
+#     def compute(self, force_recompute: bool = False) -> pd.DataFrame:
+#
+#         base_dir = Configuration().get_base_dir()
+#         cache_dir = base_dir / "cache" / self.batch_name
+#
+#         cache_file = cache_dir / f"{self.result_id}.csv"
+#
+#         self.logger.info(f"Search result for {self.result_id}")
+#         if not cache_dir.exists():
+#             cache_dir.mkdir(parents=True)
+#
+#         if cache_file.exists() and not force_recompute:
+#             self.logger.info(f"'{self.result_id}' is loaded from cache")
+#             df = pd.read_csv(cache_file, dtype=self.dtype, index_col=0)
+#             self._df = df
+#         else:
+#
+#             self.logger.info(f"Compute {self.result_id}")
+#             df = self._compute()
+#             self.logger.info(f"End Compute {self.result_id}")
+#             self._df = df
+#             self.save()
+#             # df.to_csv(cache_file)
+#
+#         self.initialize()
+#
+#         return df
+#
+#     def save(self):
+#         base_dir = Configuration().get_base_dir()
+#         cache_dir = base_dir / "cache" / self.batch_name
+#         cache_file = cache_dir / f"{self.result_id}.csv"
+#
+#         self._df.to_csv(cache_file)
+#
+#     def export_figure(self):
+#         def run():
+#
+#             self.figure.export()
+#
+#             image = Image.open(self.figure.figure_output_dir / self.figure.figure_id)
+#             image.show()
+#
+#             # fig_files = list(self.figure.figure_output_dir.glob(pattern=f"{self.figure.figure_id}"))
+#             #
+#             # for fig in fig_files:
+#             #     image = Image.open(fig)
+#             #     image.show()
+#
+#         thread = Thread(target=run)
+#         thread.start()
+#
+#     def csv_output(self) -> Path:
+#         return Path(Configuration().result_dir / f"{self.result_id}.csv")
+#
+#     def to_csv(self):
+#
+#         if not Configuration().result_dir.exists():
+#             Configuration().result_dir.mkdir(parents=True)
+#
+#         self.df.to_csv(self.csv_output())
+#
+#     @property
+#     def df(self) -> pd.DataFrame:
+#         if self._df is None:
+#             self._df = self.compute()
+#
+#         return self._df
+#
+#     @property
+#     @abstractmethod
+#     def result_id(self) -> str:
+#         pass
+#
+#     @abstractmethod
+#     def _compute(self) -> pd.DataFrame:
+#         pass
+#
+#     @property
+#     @abstractmethod
+#     def batch_name(self) -> str:
+#         pass
+#
+#     @property
+#     def dtype(self) -> Dict:
+#         return {
+#             'rfid_lp': 'string',
+#             'rfid_np': 'string'
+#         }
+#
+#     def initialize(self):
+#         pass
+#
+#     # @staticmethod
+#     # def delete_cache(xp_name: str):
+#     #     base_dir = Configuration().get_base_dir()
+#     #     cache_dir = base_dir / "cache" / xp_name
+#     #
+#     #     rmtree(cache_dir)
 
 
 class RFigure:

@@ -44,7 +44,7 @@ class TestModel(unittest.TestCase):
 
         # df = TemporaryImportBatch(batch_name="XP11").compute(force_recompute=True)
 
-        df = ImportBatch(batch_name="XP11").compute(force_recompute=True)
+        df = ImportBatch(batch_name="XP13F3").compute(force_recompute=True)
 
         print("kikoo")
 

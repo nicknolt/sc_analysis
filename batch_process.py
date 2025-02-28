@@ -435,7 +435,9 @@ class ImportBatch(BatchProcess):
         self._add_transition_groups(self.df)
         self._add_days(self.df)
 
-        # recompute mice location with the corrections
+        # temp save another time to be used by mice location with updated data
+        self.save()
+
         MiceLocation(batch_name=self.batch_name).compute(force_recompute=True)
 
         return df

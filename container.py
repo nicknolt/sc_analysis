@@ -12,7 +12,7 @@ class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
         modules=[
             "process",
-            "model"
+            "batch_process"
         ],
     )
 

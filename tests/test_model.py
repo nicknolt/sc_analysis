@@ -1,5 +1,4 @@
 import os
-import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -7,10 +6,10 @@ from typing import Dict
 
 import pandas as pd
 
+from batch_process import ImportBatch, MiceSequence, OccupationTime
 from common import FileMerger, ROOT_DIR
 from common_log import basic_config_log
 from container import Container
-from model import ImportBatch, MiceSequence, OccupationTime, Experiment
 
 container = Container()
 # container.wire(modules=["pseudo_lmt_analysis.process"])
@@ -31,6 +30,24 @@ class TestModel(unittest.TestCase):
     #     print(date)
 
 
+    # def test_transition_resolver(self):
+    #
+    #     process = TemporaryImportBatch(batch_name="XP11")
+    #
+    #     TransitionResolver(process=process).resolve()
+    #
+    #     print("kikoo")
+
+
+
+    def test_temp_import(self):
+
+        # df = TemporaryImportBatch(batch_name="XP11").compute(force_recompute=True)
+
+        df = ImportBatch(batch_name="XP11").compute(force_recompute=True)
+
+        print("kikoo")
+
     def test_transition_interval(self):
         # XP11 have transition ERROR
         # config = Configuration(base_dir=Path('./resources'))
@@ -38,9 +55,9 @@ class TestModel(unittest.TestCase):
 
         df = batch.compute()
 
-        tmp = df.groupby('trans_group')['time'].transform('first')
-
-        MiceSequence(batch=batch).compute(force_recompute=True)
+        # tmp = df.groupby('trans_group')['time'].transform('first')
+        #
+        # MiceSequence(batch=batch).compute(force_recompute=True)
         print("ok")
 
     def test_compute_cluster(self):

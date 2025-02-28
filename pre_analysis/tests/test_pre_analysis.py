@@ -4,7 +4,7 @@ from time import sleep
 
 from common_log import basic_config_log
 from configuration import Configuration
-from model import ImportBatch, MiceSequence
+from batch_process import ImportBatch, MiceSequence
 # from pre_analysis.pre_analysis import OneStepSequence, Action
 import pre_analysis
 from pre_analysis import one_step_sequence

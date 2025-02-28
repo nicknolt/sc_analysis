@@ -6,7 +6,7 @@ from common import ROOT_DIR
 from common_log import basic_config_log
 from configuration import Configuration
 from container import Container
-from model import ImportBatch, OccupationTime
+from batch_process import ImportBatch, OccupationTime
 
 import pandas as pd
 

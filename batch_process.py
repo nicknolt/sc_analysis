@@ -10,36 +10,42 @@ from dependency_injector.wiring import inject, Provide
 from common_log import create_logger
 from container import Container
 from data_repository import DataService
-from process import Process
+from process import BatchProcess
 
 
 class TransitionResolver:
 
-    def __init__(self, experiment: 'ImportBatch'):
+    def __init__(self, process: BatchProcess):
         self.logger = create_logger(self)
-        self.experiment = experiment
+        self.process = process
 
-        self._trans_df = experiment.transitions()
-        self._mice_occupation = experiment.mice_location
+        # self._trans_df = experiment.transitions()
+        # self._mice_occupation = experiment.mice_location
 
     def resolve(self):
 
-        df = self.experiment.transitions_error()
+        df = self.process.df
+        df = df[df['error'] == 'ERROR']
 
         for idx, error_row in df.iterrows():
             self._resolve(time=error_row.time)
 
     def _resolve(self, time: datetime.datetime):
 
+        df = self.process.df
+        df = df[df['action'] == 'transition']
+
         # resolve mouse swap (when mice are close to the antenna and a 'wrong' mouse as been identified instead of the real one)
-        df = self._trans_df
+        # df = self._trans_df
         error_trans = df[df['time'] == time]
 
         error_row = error_trans.iloc[0]
         from_dest = error_row.from_loc
 
         # get mice in from_dest when error is detected
-        res_occup = self._mice_occupation.get_mice_location(time)
+        mice_location = MiceLocation(batch_name=self.process.batch_name)
+
+        res_occup = mice_location.get_mice_location(time)
         mouse_in_from_loc = [key for key, value in res_occup.items() if value == from_dest]
 
         # we are looking for a transition ERROR in the candidate (mice in from dest at the moment of the transition error)
@@ -59,37 +65,91 @@ class TransitionResolver:
             if next_trans_row.error == "ERROR":
 
                 self.logger.error(f"At time {time} mouse {error_row.rfid} is swapped with mouse {next_trans_row.rfid}")
-                self.experiment.df.loc[error_row.name, 'rfid'] = next_trans_row.rfid
-                self.experiment.df.loc[error_row.name, 'error'] = "SWAP"
-                self.experiment.df.loc[next_trans_row.name, 'error'] = "SWAP"
+                self.process.df.loc[error_row.name, 'rfid'] = next_trans_row.rfid
+                self.process.df.loc[error_row.name, 'error'] = "SWAP"
+                self.process.df.loc[next_trans_row.name, 'error'] = "SWAP"
                 break
 
 
         # print("ENDED")
-class Experiment:
 
-    def __init__(self):
-        self.logger = create_logger(self)
+# class TransitionResolver:
+#
+#     def __init__(self, experiment: 'TemporaryImportBatch'):
+#         self.logger = create_logger(self)
+#         self.experiment = experiment
+#
+#         self._trans_df = experiment.transitions()
+#         self._mice_occupation = experiment.mice_location
+#
+#     def resolve(self):
+#
+#         df = self.experiment.transitions_error()
+#
+#         for idx, error_row in df.iterrows():
+#             self._resolve(time=error_row.time)
+#
+#     def _resolve(self, time: datetime.datetime):
+#
+#         # resolve mouse swap (when mice are close to the antenna and a 'wrong' mouse as been identified instead of the real one)
+#         df = self._trans_df
+#         error_trans = df[df['time'] == time]
+#
+#         error_row = error_trans.iloc[0]
+#         from_dest = error_row.from_loc
+#
+#         # get mice in from_dest when error is detected
+#         res_occup = self._mice_occupation.get_mice_location(time)
+#         mouse_in_from_loc = [key for key, value in res_occup.items() if value == from_dest]
+#
+#         # we are looking for a transition ERROR in the candidate (mice in from dest at the moment of the transition error)
+#         for mouse in mouse_in_from_loc:
+#             # filter by candidate mouse
+#             df_mouse = df[df['rfid'] == mouse]
+#             # get the next transition for this mouse
+#             next_trans_df = df_mouse[df_mouse['time'] > time]
+#
+#             if next_trans_df.empty:
+#                 continue
+#
+#             next_trans_row = next_trans_df.iloc[0]
+#
+#             # if this is an error, it means that it should be an id swap, we could resolve it and mark
+#             # the transition error as SWAP
+#             if next_trans_row.error == "ERROR":
+#
+#                 self.logger.error(f"At time {time} mouse {error_row.rfid} is swapped with mouse {next_trans_row.rfid}")
+#                 self.experiment.df.loc[error_row.name, 'rfid'] = next_trans_row.rfid
+#                 self.experiment.df.loc[error_row.name, 'error'] = "SWAP"
+#                 self.experiment.df.loc[next_trans_row.name, 'error'] = "SWAP"
+#                 break
+#
+#
+#         # print("ENDED")
+# class Experiment:
+#
+#     def __init__(self):
+#         self.logger = create_logger(self)
+#
+#     @property
+#     def batches(self) -> List[str]:
+#
+#         base_dir = Configuration().get_base_dir()
+#         data_dir = base_dir / "data"
+#
+#         batch_names = [d.name for d in data_dir.glob('*/') if d.is_dir()]
+#
+#         return batch_names
+#
+#     def get_percentage_lever_pressed(self) -> 'GlobalPercentageLeverPressed':
+#         return GlobalPercentageLeverPressed(self)
+#
+#     def get_percentage_complete_sequence(self) -> 'GlobalPercentageCompleteSequence':
+#         return GlobalPercentageCompleteSequence(self)
 
-    @property
-    def batches(self) -> List[str]:
+class GlobalPercentageLeverPressed(BatchProcess):
 
-        base_dir = Configuration().get_base_dir()
-        data_dir = base_dir / "data"
-
-        batch_names = [d.name for d in data_dir.glob('*/') if d.is_dir()]
-
-        return batch_names
-
-    def get_percentage_lever_pressed(self) -> 'GlobalPercentageLeverPressed':
-        return GlobalPercentageLeverPressed(self)
-
-    def get_percentage_complete_sequence(self) -> 'GlobalPercentageCompleteSequence':
-        return GlobalPercentageCompleteSequence(self)
-
-class GlobalPercentageLeverPressed(Process):
-
-    def __init__(self, experiment: Experiment):
+    def __init__(self, experiment: 'Experiment'):
         super().__init__()
         self.experiment = experiment
 
@@ -123,9 +183,9 @@ class GlobalPercentageLeverPressed(Process):
             'rfid': str
         }
 
-class GlobalPercentageCompleteSequence(Process):
+class GlobalPercentageCompleteSequence(BatchProcess):
 
-    def __init__(self, experiment: Experiment):
+    def __init__(self, experiment: 'Experiment'):
         super().__init__()
         self.experiment = experiment
 
@@ -159,7 +219,7 @@ class GlobalPercentageCompleteSequence(Process):
             'rfid': str
         }
 
-class PercentageLeverPressed(Process):
+class PercentageLeverPressed(BatchProcess):
 
     def __init__(self, batch: 'ImportBatch'):
         super().__init__()
@@ -189,7 +249,7 @@ class PercentageLeverPressed(Process):
     def batch_name(self) -> str:
         return f"{self.batch.batch_name}"
 
-class PercentageCompleteSequence(Process):
+class PercentageCompleteSequence(BatchProcess):
 
     def __init__(self, batch: 'ImportBatch'):
         super().__init__()
@@ -223,19 +283,83 @@ class PercentageCompleteSequence(Process):
             'rfid': str
         }
 
+# class TemporaryImportBatch(BatchProcess):
+#
+#     @inject
+#     def __init__(self, batch_name: str, data_service: DataService = Provide[Container.data_service]):
+#         super().__init__(batch_name=batch_name)
+#
+#         self._data_service = data_service
+#
+#     @property
+#     def result_id(self) -> str:
+#         return f"{self.batch_name}_tmp_events"
+#
+#     @property
+#     def dtype(self) -> Dict:
+#
+#         return {
+#             'rfid': str,
+#             'error': str
+#         }
+#
+#     def _compute(self) -> pd.DataFrame:
+#
+#         csv_str = self._data_service.get_csv_data(batch_name=self.batch_name)
+#
+#         cols = [
+#             'action',
+#             'device',
+#             'time',
+#             'rfid',
+#             'from_loc',
+#             'to_loc',
+#             'weight',
+#             'error',
+#             'direction',
+#             'activate',
+#             'liquids'
+#         ]
+#
+#
+#
+#         # df = pd.read_csv(csv_file, dtype=dtype, sep=";", names=cols, header=None)
+#         df = pd.read_csv(StringIO(csv_str), dtype=self.dtype, sep=";", names=cols, header=None)
+#         df[['day_since_start', 'trans_group']] = ''
+#
+#         # format have changed btw experiment, we have to check the dateformat
+#         old_date_format = '%d-%m-%Y %H:%M:%S'
+#
+#         try:
+#             date = pd.to_datetime(df['time'], format=old_date_format)
+#         except ValueError as error:
+#             # mixed instead of "%Y-%m-%dT%H:%M:%S.%f%z" or "ISO8601" because when ms is .000 pandas remove them and when saved in csv the format is not the same
+#             # and raise an error
+#             date = pd.to_datetime(df['time'], format="mixed")
+#
+#         df['time'] = date
+#         df.sort_values(by='time', inplace=True)
+#         df.reset_index(drop=True, inplace=True)
+#
+#         return df
+#
+#     def initialize(self):
+#
+#         self.df['time'] = pd.to_datetime(self.df['time'], format='mixed')
 
-class ImportBatch(Process):
+
+
+class ImportBatch(BatchProcess):
 
     @inject
     def __init__(self, batch_name: str, data_service: DataService = Provide[Container.data_service]):
-        super().__init__()
-        self._batch_name = batch_name
+        super().__init__(batch_name=batch_name)
 
         self._mice: List[str] = None
         self._mice_location: MiceLocation = None
         self.mice_sequence: MiceSequence = None
-
         self._data_service = data_service
+
 
     @staticmethod
     def load(batch_name: str) -> 'ImportBatch':
@@ -250,18 +374,18 @@ class ImportBatch(Process):
 
         if self._mice is None:
             # extract mice ids
-            id_mice: set = set(self._df.rfid.unique())
+            id_mice: set = set(self.df.rfid.unique())
 
-            id_mice = id_mice - {np.nan, '0', 'na'}
+            id_mice -= {np.nan, '0', 'na'}
             self._mice = id_mice
 
-        return self._mice
+        return list(self._mice)
 
     @property
     def mice_location(self) -> 'MiceLocation':
 
         if self._mice_location is None:
-            self._mice_location = MiceLocation(batch=self)
+            self._mice_location = MiceLocation(batch_name=self.batch_name)
 
         return self._mice_location
 
@@ -297,56 +421,22 @@ class ImportBatch(Process):
 
     def _compute(self) -> pd.DataFrame:
 
-        csv_str = self._data_service.get_csv_data(batch_name=self._batch_name)
-
-        cols = [
-            'action',
-            'device',
-            'time',
-            'rfid',
-            'from_loc',
-            'to_loc',
-            'weight',
-            'error',
-            'direction',
-            'activate',
-            'liquids'
-        ]
-
-        dtype = {
-            'rfid': str,
-            'error': str
-        }
-
-        # df = pd.read_csv(csv_file, dtype=dtype, sep=";", names=cols, header=None)
-        df = pd.read_csv(StringIO(csv_str), dtype=dtype, sep=";", names=cols, header=None)
-        df[['day_since_start', 'trans_group']] = ''
-
-        # format have changed btw experiment, we have to check the dateformat
-        old_date_format = '%d-%m-%Y %H:%M:%S'
-
-        try:
-            date = pd.to_datetime(df['time'], format=old_date_format)
-        except ValueError as error:
-            # mixed instead of "%Y-%m-%dT%H:%M:%S.%f%z" or "ISO8601" because when ms is .000 pandas remove them and when saved in csv the format is not the same
-            # and raise an error
-            date = pd.to_datetime(df['time'], format="mixed")
-
-        df['time'] = date
-        df.sort_values(by='time', inplace=True)
-        df.reset_index(drop=True, inplace=True)
+        df = self._data_service.get_csv_data(batch_name=self.batch_name)
 
         self._find_transitions_error(df)
+
+        # temporary save the process before correction
         self._df = df
+        self.save()
 
-        self._transition_error_correction()
-
+        self._transition_error_correction(df)
 
         # add extra info
         self._add_transition_groups(self.df)
         self._add_days(self.df)
 
-        MiceLocation(batch=self).compute(force_recompute=True)
+        # recompute mice location with the corrections
+        MiceLocation(batch_name=self.batch_name).compute(force_recompute=True)
 
         return df
 
@@ -408,9 +498,6 @@ class ImportBatch(Process):
 
         df["day_since_start"] = df.apply(get_num_day, axis=1)
 
-    @property
-    def batch_name(self) -> str:
-        return self._batch_name
 
     def initialize(self):
 
@@ -428,9 +515,11 @@ class ImportBatch(Process):
         # self._mice_location = mo
 
 
-    def _transition_error_correction(self) -> bool:
+    # could be integrated into TrasistionResolver
+    def _transition_error_correction(self, df: pd.DataFrame) -> bool:
 
-        df = self.transitions_error()
+        df = df[df['action'] == 'transition']
+        df = df[df['error'] == 'ERROR']
 
         if df.empty:
             return False
@@ -470,16 +559,264 @@ class ImportBatch(Process):
     def dtype(self) -> Dict:
         return {
             'rfid': str,
-            'error': str
+            'error': str,
         }
 
+# class ImportBatch(BatchProcess):
+#
+#     @inject
+#     def __init__(self, batch_name: str, data_service: DataService = Provide[Container.data_service]):
+#         super().__init__(batch_name=batch_name)
+#
+#         self._mice: List[str] = None
+#         self._mice_location: MiceLocation = None
+#         self.mice_sequence: MiceSequence = None
+#
+#         self._data_service = data_service
+#
+#     @staticmethod
+#     def load(batch_name: str) -> 'ImportBatch':
+#
+#         res = ImportBatch(batch_name=batch_name)
+#         res.compute()
+#
+#         return res
+#
+#     @property
+#     def mice(self) -> List[str]:
+#
+#         if self._mice is None:
+#             # extract mice ids
+#             id_mice: set = set(self._df.rfid.unique())
+#
+#             id_mice = id_mice - {np.nan, '0', 'na'}
+#             self._mice = id_mice
+#
+#         return self._mice
+#
+#     @property
+#     def mice_location(self) -> 'MiceLocation':
+#
+#         if self._mice_location is None:
+#             self._mice_location = MiceLocation(batch_name=self.batch_name)
+#
+#         return self._mice_location
+#
+#     def get_mice_occupation(self, location: str) -> 'MiceOccupation':
+#         return MiceOccupation(self.mice_location, location=location)
+#
+#     def get_percentage_lever_pressed(self) -> PercentageLeverPressed:
+#         return PercentageLeverPressed(self)
+#
+#     def get_percentage_complete_sequence(self):
+#         return PercentageCompleteSequence(self)
+#
+#     def lever_press(self) -> pd.DataFrame:
+#         df = self._df
+#         filtered = df[df['action'] == 'id_lever']
+#
+#         return filtered
+#
+#     def transitions_error(self) -> pd.DataFrame:
+#         df = self.transitions()
+#         filtered = df[df['error'] == 'ERROR']
+#         return filtered
+#
+#     def transitions(self) -> pd.DataFrame:
+#         df = self._df
+#         filtered = df[df['action'] == 'transition']
+#
+#         return filtered
+#
+#     @property
+#     def result_id(self) -> str:
+#         return f"{self.batch_name}_events"
+#
+#     def _compute(self) -> pd.DataFrame:
+#
+#         csv_str = self._data_service.get_csv_data(batch_name=self.batch_name)
+#
+#         cols = [
+#             'action',
+#             'device',
+#             'time',
+#             'rfid',
+#             'from_loc',
+#             'to_loc',
+#             'weight',
+#             'error',
+#             'direction',
+#             'activate',
+#             'liquids'
+#         ]
+#
+#         dtype = {
+#             'rfid': str,
+#             'error': str
+#         }
+#
+#         # df = pd.read_csv(csv_file, dtype=dtype, sep=";", names=cols, header=None)
+#         df = pd.read_csv(StringIO(csv_str), dtype=dtype, sep=";", names=cols, header=None)
+#         df[['day_since_start', 'trans_group']] = ''
+#
+#         # format have changed btw experiment, we have to check the dateformat
+#         old_date_format = '%d-%m-%Y %H:%M:%S'
+#
+#         try:
+#             date = pd.to_datetime(df['time'], format=old_date_format)
+#         except ValueError as error:
+#             # mixed instead of "%Y-%m-%dT%H:%M:%S.%f%z" or "ISO8601" because when ms is .000 pandas remove them and when saved in csv the format is not the same
+#             # and raise an error
+#             date = pd.to_datetime(df['time'], format="mixed")
+#
+#         df['time'] = date
+#         df.sort_values(by='time', inplace=True)
+#         df.reset_index(drop=True, inplace=True)
+#
+#         self._find_transitions_error(df)
+#         self._df = df
+#
+#         self._transition_error_correction()
+#
+#
+#         # add extra info
+#         self._add_transition_groups(self.df)
+#         self._add_days(self.df)
+#
+#         MiceLocation(batch_name=self.batch_name).compute(force_recompute=True)
+#
+#         return df
+#
+#     def _find_transitions_error(self, df: pd.DataFrame):
+#
+#         # reset error to empty
+#         df.error = ''
+#         transitions_df = df[df['action'] == 'transition'] #.reset_index(drop=True)
+#
+#         mice_list = transitions_df.rfid.unique()
+#
+#         for mouse in mice_list:
+#
+#             # detect error transitions
+#             tmp_df = transitions_df[transitions_df['rfid'] == mouse]
+#             tmp = tmp_df['to_loc'].shift(1)
+#             tmp.iloc[0] = "BLACK_BOX"
+#
+#             # if the destination of the previous transition is different than the next transition origin
+#             # need to mark the column in ERROR
+#             idx_error = tmp_df[tmp_df['from_loc'] != tmp].index
+#             df.loc[idx_error, 'error'] = "ERROR"
+#
+#
+#     def _add_transition_groups(self, df: pd.DataFrame):
+#
+#         last_num_group = 0
+#
+#         def get_num_trans_group(row: pd.Series):
+#
+#             nonlocal last_num_group
+#
+#             res = last_num_group
+#
+#             if row.action == 'transition':
+#                 last_num_group += 1
+#                 res = last_num_group
+#
+#             return res
+#
+#         df["trans_group"] = df.apply(get_num_trans_group, axis=1)
+#
+#     def _add_days(self, df: pd.DataFrame):
+#
+#         # extract first row to get the first datetime
+#         self.start_time = df.iloc[0].time
+#         # # extract last row to get the last datetime
+#         # self.end_time = df.iloc[-1].time
+#
+#         h_day_start: int = 19
+#         date_day_start = self.start_time.date()
+#
+#         def get_num_day(row: pd.Series):
+#
+#             delta_day: timedelta = (row.time.date() - date_day_start).days
+#             num_day = delta_day if row.time.hour < h_day_start else delta_day +1
+#
+#             return num_day
+#
+#         df["day_since_start"] = df.apply(get_num_day, axis=1)
+#
+#
+#     def initialize(self):
+#
+#         # # extract mice ids
+#         # id_mice: set = set(self._df.rfid.unique())
+#         #
+#         # id_mice = id_mice - {np.nan, '0', 'na'}
+#         # self.mice = id_mice
+#
+#         # sort by time
+#         self.df['time'] = pd.to_datetime(self.df['time'], format='mixed')
+#
+#         # mo = MiceLocation(batch=self)
+#         # mo.compute()
+#         # self._mice_location = mo
+#
+#
+#     def _transition_error_correction(self) -> bool:
+#
+#         df = self.transitions_error()
+#
+#         if df.empty:
+#             return False
+#         else:
+#             resolver = TransitionResolver(self)
+#             resolver.resolve()
+#
+#             df = self.transitions_error()
+#
+#             self.logger.error(f"{len(df)} transition errors found")
+#             for index, row in df.iterrows():
+#                 prev_loc = self.mice_location.get_mouse_location(time=row.time, mouse=row.rfid, just_before=True)
+#
+#                 # we add 1ms before a "fake transition" from prev_loc to transition error from loc
+#                 self.df.loc[index, 'error'] = ''
+#                 new_row = row.copy()
+#                 # susbstract 1 ms to keep transition consistent when sort by date
+#                 new_row.time -= pd.Timedelta(milliseconds=1)
+#                 new_row.device = 'correction'
+#                 new_row.from_loc = prev_loc
+#                 new_row.to_loc = row.from_loc
+#                 new_row.error = 'CORRECTED'
+#
+#                 self.df.loc[len(self.df)] = new_row
+#                 self.logger.error(
+#                     f"RFID {row.rfid} date:{row.time} from:{row.from_loc} to:{row.to_loc} previously:{prev_loc}")
+#
+#             self._df.sort_values(by='time', inplace=True)
+#             self._df.reset_index(drop=True, inplace=True)
+#
+#             return True
+#                 # # save after corrections
+#                 # self.save()
+#
+#
+#     @property
+#     def dtype(self) -> Dict:
+#         return {
+#             'rfid': str,
+#             'error': str
+#         }
 
-class MiceLocation(Process):
 
-    def __init__(self, batch: ImportBatch):
+class MiceLocation(BatchProcess):
 
-        super().__init__()
-        self.batch = batch
+    def __init__(self, batch_name: str):
+
+        super().__init__(batch_name)
+
+        self.mice: List[str] = None
+
+        # self.batch = batch
         # self.mice_occupation: MiceOccupation = None
 
     @property
@@ -494,11 +831,16 @@ class MiceLocation(Process):
 
     def _compute(self) -> pd.DataFrame:
 
-        df = self.batch.df
+        import_batch = ImportBatch(batch_name=self.batch_name)
+        df = import_batch.df
+
+        # df = TemporaryImportBatch(batch_name=self.batch_name).df
+
+        self.mice = import_batch.mice
 
         transitions_df = df[df['action'] == 'transition'] #.reset_index(drop=True)
 
-        mice_list = transitions_df.rfid.unique()
+        # mice_list = transitions_df.rfid.unique()
         res_df = pd.DataFrame(columns=['time'])
         res_df[['day_since_start', 'time', 'trans_group']] = transitions_df[['day_since_start', 'time', 'trans_group']]
         res_df.index = transitions_df.index
@@ -516,7 +858,7 @@ class MiceLocation(Process):
             else:
                 return last_known
 
-        for mouse in mice_list:
+        for mouse in self.mice:
             last_known = "BLACK_BOX"
             # create and populate extra columns named by the rfid of all the mice
             res_df[mouse] = transitions_df.apply(find_location, args=(mouse,), axis=1)
@@ -538,12 +880,21 @@ class MiceLocation(Process):
 
         return res_df
 
-    @property
-    def batch_name(self) -> str:
-        return self.batch.batch_name
+    # @property
+    # def mice(self) -> List[str]:
+    #     # extract mice ids
+    #     id_mice: set = set(self._df.rfid.unique())
+    #     id_mice -= {np.nan, '0', 'na'}
+    #     # self._mice = id_mice
+    #
+    #     return list(id_mice)
+
+
 
     def initialize(self):
         self._df['time'] = pd.to_datetime(self._df['time'], format='mixed')
+
+        self.mice = ImportBatch(batch_name=self.batch_name).mice
 
         # mice_occupation = MiceOccupation(mice_location=self)
         # mice_occupation.compute()
@@ -560,6 +911,7 @@ class MiceLocation(Process):
         res = None
 
         df = self.df
+
         num_tail = 1
 
         if just_before:
@@ -568,7 +920,7 @@ class MiceLocation(Process):
         record = df.loc[df['time'] <= time].tail(num_tail)
 
         if len(record):
-            res = record[list(self.batch.mice)].to_dict(orient='records')[0]
+            res = record[self.mice].to_dict(orient='records')[0]
 
         return res
 
@@ -582,14 +934,14 @@ class MiceLocation(Process):
 
         return len(res)
 
-class MiceOccupation(Process):
+class MiceOccupation(BatchProcess):
 
-    def __init__(self, batch: ImportBatch, location: str = "LMT"):
-        super().__init__()
+    def __init__(self, batch_name: str, location: str = "LMT"):
+        super().__init__(batch_name=batch_name)
 
         # self.mice_location = mice_location
         self.location = location
-        self.batch = batch
+        # self.batch = batch
 
     # def initialize(self):
     #     self._df['mice_comb'] = self._df['mice_comb'].astype(str)
@@ -649,7 +1001,7 @@ class MiceOccupation(Process):
     def batch_name(self) -> str:
         return self.batch.batch_name
 
-class MiceSequence(Process):
+class MiceSequence(BatchProcess):
 
     def __init__(self, batch: ImportBatch):
         super().__init__()
@@ -724,7 +1076,7 @@ class MiceSequence(Process):
         }
 
 
-class OccupationTime(Process):
+class OccupationTime(BatchProcess):
 
     def __init__(self, experiment: ImportBatch):
         super().__init__()

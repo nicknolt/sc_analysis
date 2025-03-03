@@ -4,7 +4,6 @@ from typing import List
 
 from common import ROOT_DIR
 from common_log import basic_config_log
-from configuration import Configuration
 from container import Container
 from batch_process import ImportBatch, OccupationTime
 
@@ -14,14 +13,13 @@ from pre_analysis.pre_analysis import Action, MiceWeight
 
 container = Container()
 # container.wire(modules=["pseudo_lmt_analysis.process"])
-container.config.from_ini(ROOT_DIR / "tests/resources/config.ini")
+container.config.from_ini('/Users/macminicv/Documents/Data_SC/config.ini')
 
 class TestCecile(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         basic_config_log()
-        config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC'), result_dir=Path('/Users/macminicv/Documents/Data_SC/SC_OUTPUT'))
 
     def test_MiceWeight(self):
         batch = ImportBatch.load(batch_name="XP11")

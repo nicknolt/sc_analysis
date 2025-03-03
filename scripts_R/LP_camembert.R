@@ -38,5 +38,3 @@ ggplot(distribution, aes(x = "", y = percentage, fill = next_action)) +
     facet_wrap(~rfid, scales = "fixed") + #par souris ou sur le meme graphe
     theme_void() +
     theme(legend.position = "right")
-
-

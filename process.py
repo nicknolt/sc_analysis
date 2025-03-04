@@ -3,15 +3,19 @@ import os
 import subprocess
 from abc import abstractmethod
 from pathlib import Path
+from threading import Thread
 from typing import Dict, TYPE_CHECKING
 
 import pandas as pd
+from PIL import Image
+
 from dependency_injector.wiring import inject, Provide
 
 
 from common import ROOT_DIR
 from common_log import create_logger
 from container import Container
+from data_repository import DataService
 from parameters import Parameters
 
 if TYPE_CHECKING:
@@ -27,6 +31,8 @@ class Process:
         self.logger = create_logger(self)
         self._df: pd.DataFrame = None
         self.parameters: Parameters = parameters
+
+        self.figure: RFigure = None
 
     @property
     @abstractmethod
@@ -61,8 +67,37 @@ class Process:
         return self.df
 
     @inject
+    def get_result_dir(self, ds: DataService = Provide[Container.data_service]) -> Path:
+        return ds.result_dir
+
+    @inject
     def save(self, cache_repo: 'CacheRepository' = Provide[Container.cache_repository]):
         cache_repo.save(self)
+
+    def to_csv(self) -> Path:
+
+        result_dir = self.get_result_dir()
+
+        if not result_dir.exists():
+            result_dir.mkdir(parents=True)
+
+        dest_dir = result_dir / f"{self.result_id}.csv"
+
+        self.df.to_csv(dest_dir)
+
+        return dest_dir
+
+    def export_figure(self):
+
+        def run():
+
+            figure_path = self.figure.export()
+
+            image = Image.open(figure_path)
+            image.show()
+
+        thread = Thread(target=run)
+        thread.start()
 
     @abstractmethod
     def _compute(self) -> pd.DataFrame:
@@ -194,9 +229,9 @@ class RFigure:
         self.process = process
         self.script_name = script_name
 
-    @property
-    def figure_output_dir(self) -> Path:
-        return Configuration().result_dir
+    # @property
+    # def figure_output_dir(self) -> Path:
+    #     return Configuration().result_dir
 
     @property
     @abstractmethod
@@ -208,17 +243,17 @@ class RFigure:
     def extra_args(self) -> Dict[str, str]:
         pass
 
-    def export(self):
+    def export(self) -> Path:
 
-        self.process.to_csv()
+        csv_dir = self.process.to_csv()
 
         script_r = ROOT_DIR / "scripts_R" / self.script_name
 
-        output_file = self.figure_output_dir / self.figure_id
+        output_file = self.process.get_result_dir() / self.figure_id
 
         res_dic = {
             "figure_file": str(output_file),
-            "csv_file": str(self.process.csv_output().absolute())
+            "csv_file": str(csv_dir.absolute())
 
         }
 
@@ -237,18 +272,6 @@ class RFigure:
             stderr=subprocess.PIPE
         )
 
-        # p = subprocess.Popen(
-        #     ["Rscript", "--vanilla",
-        #      script_r,
-        #      self.process.csv_output().absolute(),
-        #      output_file.absolute(),
-        #      extra],
-        #     cwd=os.getcwd(),
-        #     stdin=subprocess.PIPE,
-        #     stdout=subprocess.PIPE,
-        #     stderr=subprocess.PIPE
-        # )
-
         output, error = p.communicate()
 
         if p.returncode == 0:
@@ -256,3 +279,5 @@ class RFigure:
         else:
             print('R OUTPUT:\n {0}'.format(output.decode("utf-8")))
             print('R ERROR:\n {0}'.format(error.decode("utf-8")))
+
+        return output_file

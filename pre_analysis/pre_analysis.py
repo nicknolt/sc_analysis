@@ -5,7 +5,7 @@ from typing import List, Dict
 import pandas as pd
 
 from batch_process import ImportBatch
-from process import Process, RFigure
+from process import Process, RFigure, BatchProcess
 import numpy as np
 
 def one_step_sequence(batch_name: str, from_event: 'Action') -> 'OneStepSequence':
@@ -87,11 +87,10 @@ class OneStepSequenceFigure(RFigure):
         return f"{self.process.result_id}.jpg"
 
 
-class MiceWeight(Process):
+class MiceWeight(BatchProcess):
 
-    def __init__(self, batch: ImportBatch):
-        super().__init__()
-        self.batch = batch
+    def __init__(self, batch_name: str):
+        super().__init__(batch_name=batch_name)
 
     @property
     def result_id(self) -> str:
@@ -99,17 +98,13 @@ class MiceWeight(Process):
 
     def _compute(self) -> pd.DataFrame:
 
-        df = self.batch.df
+        df = ImportBatch(batch_name=self.batch_name).df
         df = df[(df['action'] == 'transition') & (df['rfid'] != "0")]
 
         # keep only usefull columns
         df = df.loc[:, ['rfid', 'weight', 'day_since_start']]
 
         return df
-
-    @property
-    def batch_name(self) -> str:
-        return self.batch.batch_name
 
     def initialize(self):
         self.figure = MiceWeightFigure(process=self)

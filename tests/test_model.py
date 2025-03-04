@@ -10,9 +10,9 @@ from batch_process import ImportBatch, MiceSequence, OccupationTime
 from common import FileMerger, ROOT_DIR
 from common_log import basic_config_log
 from container import Container
+from pre_analysis.pre_analysis import MiceWeight
 
 container = Container()
-# container.wire(modules=["pseudo_lmt_analysis.process"])
 container.config.from_ini(ROOT_DIR / "tests/resources/config.ini")
 
 class TestModel(unittest.TestCase):
@@ -38,6 +38,15 @@ class TestModel(unittest.TestCase):
     #
     #     print("kikoo")
 
+
+    def test_MiceWeight(self):
+
+        mice_weight = MiceWeight(batch_name="XP11")
+        mice_weight.compute()
+
+        mice_weight.export_figure()
+
+        print("OK")
 
 
     def test_temp_import(self):

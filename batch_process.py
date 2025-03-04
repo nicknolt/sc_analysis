@@ -961,7 +961,7 @@ class MiceOccupation(BatchProcess):
 
     def _compute(self) -> pd.DataFrame:
 
-        df = MiceLocation(batch=self.batch).df
+        df = MiceLocation(batch_name=self.batch_name).df
         mice = list(df.columns[3:])
 
         res_per_day: Dict[int, Dict[str, float]] = dict()
@@ -999,9 +999,9 @@ class MiceOccupation(BatchProcess):
 
         return df
 
-    @property
-    def batch_name(self) -> str:
-        return self.batch.batch_name
+    # @property
+    # def batch_name(self) -> str:
+    #     return self.batch.batch_name
 
 class MiceSequence(BatchProcess):
 

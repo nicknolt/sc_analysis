@@ -1,8 +1,22 @@
 import sqlite3
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from common_log import create_logger
+
+
+
+@dataclass
+class DBInfo:
+    path: Path
+    date_start: datetime
+    date_end: datetime
+
+    @property
+    def duration(self) -> float:
+        return (self.date_end - self.date_start).total_seconds() / 60 / 60 / 24
 
 
 class LMTDBReader:
@@ -14,7 +28,11 @@ class LMTDBReader:
         self._date_end: datetime = None
         
         self.db_path = db_path
-    
+
+    @property
+    def db_info(self) -> 'DBInfo':
+        return DBInfo(self.db_path, self.date_start, self.date_end)
+
     @property
     def date_start(self):
         if self._date_start is None:
@@ -38,13 +56,21 @@ class LMTDBReader:
         connection = sqlite3.connect(self.db_path)
         c = connection.cursor()
 
-        c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MIN(framenumber) FROM frame)')
-        row = c.fetchone()
-        self._date_start = datetime.fromtimestamp(row[0]/1000)
+        try:
+            c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MIN(framenumber) FROM frame)')
+            row = c.fetchone()
+            self._date_start = datetime.fromtimestamp(row[0]/1000)
+        except sqlite3.DatabaseError as e:
+            err_msg = f"Unable to fetch date start from database: '{self.db_path}' cause: {e}"
+            self.logger.error(err_msg)
 
-        c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MAX(framenumber) FROM frame)')
-        row = c.fetchone()
-        self._date_end = datetime.fromtimestamp(row[0]/1000)
+        try:
+            c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MAX(framenumber) FROM frame)')
+            row = c.fetchone()
+            self._date_end = datetime.fromtimestamp(row[0]/1000)
+        except sqlite3.DatabaseError as e:
+            err_msg = f"Unable to fetch date end from database: '{self.db_path}' cause: {e}"
+            self.logger.error(err_msg)
 
         # self.connexion = connection
         c.close()

@@ -15,7 +15,7 @@ from dependency_injector.wiring import inject, Provide
 from common import ROOT_DIR
 from common_log import create_logger
 from container import Container
-from data_repository import DataService
+from data_service import DataService
 from parameters import Parameters
 
 if TYPE_CHECKING:
@@ -112,6 +112,8 @@ class BatchProcess(Process):
         super().__init__()
         self.batch_name = batch_name
 
+class GlobalProcess(Process):
+    pass
 
 # class Process:
 #

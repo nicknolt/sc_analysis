@@ -41,7 +41,7 @@ class TestModel(unittest.TestCase):
 
     def test_MiceWeight(self):
 
-        mice_weight = MiceWeight(batch_name="XP11")
+        mice_weight = MiceWeight(batch_name="XP13F3")
         mice_weight.compute()
 
         mice_weight.export_figure()

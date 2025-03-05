@@ -24,14 +24,16 @@ class CacheRepository:
 
     def _get_cache_file(self, process: 'Process') -> Path:
 
-        from process import BatchProcess
+        from process import BatchProcess, GlobalProcess
 
         if isinstance(process, BatchProcess):
             dir_dest = self.cache_dir / process.batch_name
             if not dir_dest.exists():
                 dir_dest.mkdir(parents=True)
-        else:
+        elif isinstance(process, GlobalProcess):
             dir_dest = self.cache_dir
+        else:
+            raise NotImplementedError(f"Process type {type(process)} need to be subclassed to BatchProcess or GlobalProcess")
 
         cache_file = dir_dest / f"{process.result_id}.csv"
 

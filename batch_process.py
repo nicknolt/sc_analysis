@@ -9,7 +9,7 @@ from dependency_injector.wiring import inject, Provide
 
 from common_log import create_logger
 from container import Container
-from data_repository import DataService
+from data_service import DataService
 from process import BatchProcess
 
 
@@ -421,7 +421,7 @@ class ImportBatch(BatchProcess):
 
     def _compute(self) -> pd.DataFrame:
 
-        df = self._data_service.get_csv_data(batch_name=self.batch_name)
+        df = self._data_service.get_raw_df(batch_name=self.batch_name)
 
         self._find_transitions_error(df)
 

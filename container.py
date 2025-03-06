@@ -1,4 +1,4 @@
-from dependency_injector import containers, providers
+from dependency_injector import providers, containers
 
 from cache_repository import CacheRepository
 from data_service import DataService
@@ -27,7 +27,7 @@ class Container(containers.DeclarativeContainer):
 
     data_service = providers.Singleton(
         DataService,
-        result_dir=config.general.result_dir.required()
+        data_dir=config.general.data_dir.required()
     )
 
     lmt_service = providers.Singleton(

@@ -27,7 +27,7 @@ class LMTDBReader:
         self._date_start: datetime = None
         self._date_end: datetime = None
         
-        self.db_path = db_path
+        self.db_path: Path = db_path
 
     @property
     def db_info(self) -> 'DBInfo':
@@ -51,7 +51,7 @@ class LMTDBReader:
         return (self.date_end - self.date_start).total_seconds()/60/60
 
     def _fetch_date_begin_end(self):
-        self.logger.info(f"Load sql file:'{self.db_path}'")
+        self.logger.debug(f"Load sql file:'{self.db_path}'")
 
         connection = sqlite3.connect(self.db_path)
         c = connection.cursor()

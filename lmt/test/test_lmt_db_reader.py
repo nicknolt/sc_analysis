@@ -4,10 +4,10 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
+from batch_process import ExtractDBEventInfo
 from common import ROOT_DIR
 from common_log import basic_config_log
 from container import Container
-from lmt.lmt2batch_link_process import LMT2BatchLinkProcess
 from lmt.lmt_db_reader import LMTDBReader, DBInfo
 from lmt.lmt_service import LMTService
 
@@ -20,12 +20,25 @@ class TestLMTDBReader(unittest.TestCase):
     def setUpClass(cls):
         basic_config_log()
 
-    def test_lmt2batch(self):
-        process = LMT2BatchLinkProcess()
+    def test_get_db_path(self):
+        from lmt.lmt2batch_link_process import LMT2BatchLinkProcess
 
-        res = process.df
+        p = LMT2BatchLinkProcess()
+
+        date_str = "2024-01-16 08:04:34.499000+01:00"
+        date = datetime.fromisoformat(date_str)
+
+        res = p.get_db_path(batch_name="XP8", date=date)
 
         print("ok")
+
+    def test_extract_db_event_infos(self):
+
+        p = ExtractDBEventInfo(batch_name="XP6")
+        df = p.df
+
+        print("ok")
+
 
 
 

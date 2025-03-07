@@ -10,6 +10,7 @@ from dependency_injector.wiring import inject, Provide
 from common_log import create_logger
 from container import Container
 from data_service import DataService
+from lmt.lmt_service import LMTService
 from process import BatchProcess
 
 
@@ -564,6 +565,37 @@ class ImportBatch(BatchProcess):
             'error': str,
         }
 
+class ExtractDBEventInfo(BatchProcess):
+
+
+
+    def __init__(self, batch_name: str, lmt_service: LMTService = Provide[Container.lmt_service]):
+        super().__init__(batch_name)
+        self.lmt_service = lmt_service
+
+    @property
+    def result_id(self) -> str:
+        pass
+
+    @property
+    def dtype(self) -> Dict:
+        pass
+
+    def _compute(self) -> pd.DataFrame:
+
+        df_ev = ImportBatch(batch_name=self.batch_name).df
+
+        for index, row in df_ev.iterrows():
+            date = row['time']
+            lmt_reader = self.lmt_service.get_lmt_reader(batch_name=self.batch_name, date=date)
+            frame = lmt_reader.get_corresponding_frame_number(date=date)
+
+            print("ok")
+
+
+        print("ok")
+
+
 # class ImportBatch(BatchProcess):
 #
 #     @inject
@@ -894,7 +926,7 @@ class MiceLocation(BatchProcess):
 
 
     def initialize(self):
-        self._df['time'] = pd.to_datetime(self._df['time'], format='mixed')
+        self._df['time'] = pd.to_datetime(self._df['time'], utc=True)
 
         self.mice = ImportBatch(batch_name=self.batch_name).mice
 

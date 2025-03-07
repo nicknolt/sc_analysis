@@ -1,3 +1,5 @@
+from datetime import datetime
+from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
@@ -6,8 +8,6 @@ from dependency_injector.wiring import Provide, inject
 from container import Container
 from data_service import DataService, BatchInfo
 from lmt.lmt_service import LMTService
-from parameters import Parameters
-
 from process import GlobalProcess
 
 
@@ -54,6 +54,19 @@ class LMT2BatchLinkProcess(GlobalProcess):
         df.sort_values(by='date_start', inplace=True)
 
         return df
+
+    def get_db_path(self, batch_name: str, date: datetime) -> Path:
+
+        df = self.df
+
+        res = df[(df['batch'] == batch_name) & (df.date_start <= date) & (date <= df.date_end)]
+
+        if len(res) == 1:
+            return Path(res.iloc[0].path)
+
+        return None
+
+
 
     def initialize(self):
         self.df['date_start'] = pd.to_datetime(self.df['date_start'], format='mixed')

@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import List, TYPE_CHECKING
 
@@ -29,3 +30,13 @@ class LMTService:
         res = map(lambda db_path: LMTDBReader(db_path).db_info, self._get_all_db_files())
 
         return list(res)
+
+    def get_lmt_reader(self, batch_name: str, date: datetime) -> LMTDBReader:
+        from lmt.lmt2batch_link_process import LMT2BatchLinkProcess
+
+        df_db = LMT2BatchLinkProcess().get_db_path(batch_name=batch_name, date=date)
+
+        if df_db:
+            return LMTDBReader(df_db)
+
+        return None

@@ -39,6 +39,13 @@ class TestLMTDBReader(unittest.TestCase):
         res = reader.get_corresponding_frame_number(date=datetime(year=2023, month=4, day=12, hour=10))
         print("kikoo")
 
+    def test_get_db_infos(self):
+        lmt_service = container.lmt_service()
+        res = lmt_service.get_db_infos()
+
+        for db in res:
+            print(f"{db.path.name} date_start: {db.date_start} date_end: {db.date_end}")
+
     def test_copy_db_in_error(self):
         lmt_service = container.lmt_service()
 
@@ -68,6 +75,8 @@ class TestLMTDBReader(unittest.TestCase):
         print("ok")
 
     def test_recover_db_in_error(self):
+        # https://janakiev.com/blog/python-shell-commands/
+
         db_dir = Path(r"C:\Users\Nicolas\Desktop\tmp\CORRECT_DB\\")
 
         sqlite3_path = Path(r"C:\SANS_INSTALL\sqlite_tools\sqlite-tools-win-x64-3490100\sqlite3.exe")
@@ -75,7 +84,11 @@ class TestLMTDBReader(unittest.TestCase):
             to_dest = db_dir / "corrected" / f"corrected_{db_file.name}"
             cmd = f"{sqlite3_path} {db_file} \".recover\" | {sqlite3_path} {to_dest}"
 
-            subprocess.check_output(cmd, shell=True)
+            try:
+                grepOut = subprocess.check_output(cmd, shell=True)
+                print(grepOut)
+            except subprocess.CalledProcessError as grepexc:
+                print("error code", grepexc.returncode, grepexc.output)
 
 if __name__ == '__main__':
     unittest.main()

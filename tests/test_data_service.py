@@ -22,6 +22,22 @@ class TestDataService(unittest.TestCase):
         # config = Configuration(base_dir=Path('./resources'), result_dir=Path(r"C:\Users\Nicolas\Desktop\tmp\SC_OUTPUT"))
 
 
+    def test_date_mystery(self):
+
+        tutu = datetime.now().isoformat()
+        date_str = "2023-10-18T17:20:02.000+02:00"
+
+
+        res = datetime.fromisoformat(date_str)
+
+        print("ok")
+
+    def test_XP6_infoghj(self):
+        data_service = container.data_service()
+
+        df = data_service.get_raw_df("XP6")
+
+        print("ok")
 
     def test_tmp_convert_xp6(self):
         data_service = container.data_service()
@@ -89,5 +105,8 @@ class TestDataService(unittest.TestCase):
         data_service = container.data_service()
 
         res = data_service.get_batches()
+
+        for batch in res:
+            print(f"batch: {batch.name} start {batch.date_start} - end {batch.date_end}")
 
         print("ok")

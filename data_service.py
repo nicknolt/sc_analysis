@@ -94,12 +94,13 @@ class DataService:
         # format have changed btw experiment, we have to check the dateformat
         old_date_format = '%d-%m-%Y %H:%M:%S'
 
+        tz_str = pytz.timezone("Europe/Paris")
+
         try:
             date = pd.to_datetime(df['time'], format=old_date_format)
 
             df['time'] = date
             # add time zone to be homogenous
-            tz_str = pytz.timezone("Europe/Paris")
             df["time"] = df["time"].dt.tz_localize(tz_str)
         except AmbiguousTimeError as e:
             err_msg = f"Unable to convert time to tz Paris for batch : {batch_name}"
@@ -108,8 +109,11 @@ class DataService:
         except ValueError as error:
             # mixed instead of "%Y-%m-%dT%H:%M:%S.%f%z" or "ISO8601" because when ms is .000 pandas remove them and when saved in csv the format is not the same
             # and raise an error
-            date = pd.to_datetime(df['time'], format="mixed")
-            df['time'] = date
+
+            # tz_format = "%Y-%m-%dT%H:%M:%S.%f%z"
+
+            df['time'] = pd.to_datetime(df['time'], format="ISO8601", utc=True).dt.tz_convert(tz_str)
+            # df["time"] = df["time"].dt.tz_localize(tz_str)
 
         df.sort_values(by='time', inplace=True)
         df.reset_index(drop=True, inplace=True)

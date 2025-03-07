@@ -22,7 +22,7 @@ class LMT2BatchLinkProcess(GlobalProcess):
 
     @property
     def result_id(self) -> str:
-        pass
+        return 'lmt2batch'
 
     @property
     def dtype(self) -> Dict:
@@ -33,9 +33,29 @@ class LMT2BatchLinkProcess(GlobalProcess):
         batch_list: List[BatchInfo] = self.data_service.get_batches()
         db_list = self.lmt_service.get_db_infos()
 
-        for db in db_list:
-            res = list(filter(lambda batchinfo:  db.date_start <= batchinfo.date_end <= db.date_end, batch_list))
-            print(f"{db.path} is link to {len(res)} batches")
+        res_dict: List[Dict] = []
 
-        print("ok")
+        for db in db_list:
+
+            res: List[BatchInfo] = list(filter(lambda batchinfo: (batchinfo.date_start <= db.date_start <= batchinfo.date_end) or (batchinfo.date_start <= db.date_end <= batchinfo.date_end), batch_list))
+
+
+            dict_entry = {'path': db.path, 'date_start': db.date_start, 'date_end': db.date_end, 'duration': db.duration, 'batch': ''}
+
+            if len(res) == 1:
+                self.logger.info(f"{db.path.name} is link with batch: {res[0].name}")
+                dict_entry['batch'] = res[0].name
+            elif len(res) > 1:
+                raise Exception(f"link to more than one batch ({len(res)})")
+
+            res_dict.append(dict_entry)
+
+        df = pd.DataFrame(res_dict)
+        df.sort_values(by='date_start', inplace=True)
+
+        return df
+
+    def initialize(self):
+        self.df['date_start'] = pd.to_datetime(self.df['date_start'], format='mixed')
+        self.df['date_end'] = pd.to_datetime(self.df['date_end'], format='mixed')
 

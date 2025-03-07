@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytz
+
 from common_log import create_logger
 
 
@@ -51,15 +53,17 @@ class LMTDBReader:
         return (self.date_end - self.date_start).total_seconds()/60/60
 
     def _fetch_date_begin_end(self):
-        self.logger.debug(f"Load sql file:'{self.db_path}'")
+        self.logger.info(f"Load sql file:'{self.db_path}'")
 
         connection = sqlite3.connect(self.db_path)
         c = connection.cursor()
 
+        tz_str = pytz.timezone("Europe/Paris")
+
         try:
             c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MIN(framenumber) FROM frame)')
             row = c.fetchone()
-            self._date_start = datetime.fromtimestamp(row[0]/1000)
+            self._date_start = datetime.fromtimestamp(row[0]/1000, tz=tz_str)
         except sqlite3.DatabaseError as e:
             err_msg = f"Unable to fetch date start from database: '{self.db_path}' cause: {e}"
             self.logger.error(err_msg)
@@ -67,7 +71,7 @@ class LMTDBReader:
         try:
             c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MAX(framenumber) FROM frame)')
             row = c.fetchone()
-            self._date_end = datetime.fromtimestamp(row[0]/1000)
+            self._date_end = datetime.fromtimestamp(row[0]/1000, tz=tz_str)
         except sqlite3.DatabaseError as e:
             err_msg = f"Unable to fetch date end from database: '{self.db_path}' cause: {e}"
             self.logger.error(err_msg)

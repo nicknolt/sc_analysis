@@ -1,9 +1,11 @@
+import math
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
+import numpy as np
 import pytz
 
 from common_log import create_logger
@@ -31,6 +33,15 @@ class LMTDBReader:
         
         self.db_path: Path = db_path
 
+        self._connexion: sqlite3.Connection = None
+
+    @property
+    def connexion(self) -> sqlite3.Connection:
+        if self._connexion is None:
+            self._connexion = sqlite3.connect(self.db_path)
+
+        return self._connexion
+
     @property
     def db_info(self) -> 'DBInfo':
         return DBInfo(self.db_path, self.date_start, self.date_end)
@@ -52,10 +63,21 @@ class LMTDBReader:
         # in hours
         return (self.date_end - self.date_start).total_seconds()/60/60
 
+    def close(self):
+
+        if self._connexion is not None:
+            self._connexion.close()
+
+        self._connexion = None
+
+    def is_date_inside(self, date: datetime) -> bool:
+        return self.date_start <= date <= self.date_end
+
     def _fetch_date_begin_end(self):
         self.logger.info(f"Load sql file:'{self.db_path}'")
 
-        connection = sqlite3.connect(self.db_path)
+        connection = self.connexion
+        # connection = sqlite3.connect(self.db_path)
         c = connection.cursor()
 
         tz_str = pytz.timezone("Europe/Paris")
@@ -76,16 +98,48 @@ class LMTDBReader:
             err_msg = f"Unable to fetch date end from database: '{self.db_path}' cause: {e}"
             self.logger.error(err_msg)
 
-        # self.connexion = connection
         c.close()
-        connection.close()
+        self.close()
 
-    def get_corresponding_frame_number(self, date: datetime) -> int:
+    def get_closest_animal(self, frame_number: int, location: Tuple[int, int]) -> str:
+
+        connection = self.connexion
+        c = connection.cursor()
+
+        c.execute(
+            f'SELECT d.MASS_X, d.MASS_Y, a.RFID FROM DETECTION as d, ANIMAL as a WHERE d.FRAMENUMBER = ? AND d.ANIMALID == a.ID',
+            (frame_number,))
+
+        rows = c.fetchall()
+
+        min_dist: float = None
+        min_rfid: str = None
+
+        for row in rows:
+
+            dist = math.dist((row[0], row[1]), location)
+
+            if min_dist is None or dist < min_dist:
+                min_dist = dist
+                min_rfid = row[2]
+
+
+        if min_dist > 60:
+            self.logger.warning(f"Min dist is {min_dist} for rfid '{min_rfid}' but is too far to be considered as pertinent")
+            return None
+
+        c.close()
+
+        return min_rfid
+
+
+    def get_corresponding_frame_number(self, date: datetime, close_connexion: bool = True) -> int:
 
         if not (self.date_start < date < self.date_end):
             raise ValueError(f"Date {date} is out of range [{self.date_start}, {self.date_end}]")
 
-        connection = sqlite3.connect(self.db_path)
+        connection = self.connexion
+        # connection = sqlite3.connect(self.db_path)
 
         # every 500 frames (1650 ms) LMT recording delay the next frame for 220 ms
         delta_t = (date - self.date_start).total_seconds()
@@ -108,7 +162,11 @@ class LMTDBReader:
             (from_date_ts,))
 
         row = c.fetchone()
+        c.close()
 
+        if close_connexion:
+            self.close()
+        
         if row is None:
             self.logger.warning(f"Frame number not found for date {date} of timestamp {from_date_ts} expected frame {expected_frame}")
             return None

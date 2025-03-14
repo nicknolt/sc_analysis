@@ -1,9 +1,12 @@
+from typing import Tuple
+
 from dependency_injector import providers, containers
 
 from cache_repository import CacheRepository
 from data_service import DataService
 from lmt.lmt_service import LMTService
 from parameters import Parameters
+
 
 
 class Container(containers.DeclarativeContainer):
@@ -37,7 +40,9 @@ class Container(containers.DeclarativeContainer):
 
     parameters = providers.Singleton(
         Parameters,
-        max_sequence_duration=config.process_parameters.max_sequence_duration.required().as_int()
+        max_sequence_duration=config.process_parameters.max_sequence_duration.required().as_int(),
+        lever_loc=config.process_parameters.lever_loc.required(),
+        feeder_loc=config.process_parameters.feeder_loc.required()
     )
 
     # data_service = providers.Singleton(DataService,

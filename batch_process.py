@@ -1,15 +1,19 @@
 import datetime
 from datetime import timedelta
 from io import StringIO
+from pathlib import Path
 from typing import List, Dict
 
 import numpy as np
 import pandas as pd
 from dependency_injector.wiring import inject, Provide
+from pandas.core import series
 
 from common_log import create_logger
 from container import Container
 from data_service import DataService
+from lmt.lmt2batch_link_process import LMT2BatchLinkProcess
+from lmt.lmt_db_reader import LMTDBReader
 from lmt.lmt_service import LMTService
 from process import BatchProcess
 
@@ -284,71 +288,61 @@ class PercentageCompleteSequence(BatchProcess):
             'rfid': str
         }
 
-# class TemporaryImportBatch(BatchProcess):
-#
-#     @inject
-#     def __init__(self, batch_name: str, data_service: DataService = Provide[Container.data_service]):
-#         super().__init__(batch_name=batch_name)
-#
-#         self._data_service = data_service
-#
-#     @property
-#     def result_id(self) -> str:
-#         return f"{self.batch_name}_tmp_events"
-#
-#     @property
-#     def dtype(self) -> Dict:
-#
-#         return {
-#             'rfid': str,
-#             'error': str
-#         }
-#
-#     def _compute(self) -> pd.DataFrame:
-#
-#         csv_str = self._data_service.get_csv_data(batch_name=self.batch_name)
-#
-#         cols = [
-#             'action',
-#             'device',
-#             'time',
-#             'rfid',
-#             'from_loc',
-#             'to_loc',
-#             'weight',
-#             'error',
-#             'direction',
-#             'activate',
-#             'liquids'
-#         ]
-#
-#
-#
-#         # df = pd.read_csv(csv_file, dtype=dtype, sep=";", names=cols, header=None)
-#         df = pd.read_csv(StringIO(csv_str), dtype=self.dtype, sep=";", names=cols, header=None)
-#         df[['day_since_start', 'trans_group']] = ''
-#
-#         # format have changed btw experiment, we have to check the dateformat
-#         old_date_format = '%d-%m-%Y %H:%M:%S'
-#
-#         try:
-#             date = pd.to_datetime(df['time'], format=old_date_format)
-#         except ValueError as error:
-#             # mixed instead of "%Y-%m-%dT%H:%M:%S.%f%z" or "ISO8601" because when ms is .000 pandas remove them and when saved in csv the format is not the same
-#             # and raise an error
-#             date = pd.to_datetime(df['time'], format="mixed")
-#
-#         df['time'] = date
-#         df.sort_values(by='time', inplace=True)
-#         df.reset_index(drop=True, inplace=True)
-#
-#         return df
-#
-#     def initialize(self):
-#
-#         self.df['time'] = pd.to_datetime(self.df['time'], format='mixed')
+class DBEventInfo(BatchProcess):
+
+    @property
+    def result_id(self) -> str:
+        return f"{self.batch_name}_db_event_info"
+
+    @property
+    def dtype(self) -> Dict:
+        pass
+
+    def _add_db_frame(self, df: pd.DataFrame, lmt_service: LMTService = Provide[Container.lmt_service]) -> pd.DataFrame:
+
+        current_reader: LMTDBReader = None
+        current_db_idx: int = None
+        nb_elem = len(df)
+
+        def get_db_idx(row: pd.Series):
+
+            nonlocal current_reader, current_db_idx, nb_elem
+
+            if (current_reader is None) or (not current_reader.is_date_inside(row['time'])):
+
+                if current_reader:
+                    current_reader.close()
+
+                current_reader, current_db_idx = lmt_service.get_lmt_reader(self.batch_name, row['time'])
+
+            if current_reader is None:
+                num_frame = -1
+                current_db_idx = -1
+            else:
+                num_frame = current_reader.get_corresponding_frame_number(row['time'], close_connexion=False)
+
+            self.logger.debug(f"{row.name}/{nb_elem}")
+
+            row["db_idx"] = current_db_idx
+            row["db_frame"] = num_frame
+
+            return row
 
 
+        # df[["db_idx", "db_frame"]] = None #df_event.apply(get_db_idx, axis=1)
+        res = df.apply(get_db_idx, axis=1)[["db_idx", "db_frame"]]
+
+        return res
+
+
+    def _compute(self) -> pd.DataFrame:
+
+        p = ImportBatch(self.batch_name)
+        df_event = p.df
+
+        df_event = self._add_db_frame(df_event)
+
+        return df_event
 
 class ImportBatch(BatchProcess):
 
@@ -441,7 +435,50 @@ class ImportBatch(BatchProcess):
 
         MiceLocation(batch_name=self.batch_name).compute(force_recompute=True)
 
+        self._add_db_frame_info()
+        self.save()
+
+        self._add_lmt_loc()
+
         return df
+
+    def _add_lmt_loc(self):
+        df = self.df
+
+        df_db = LMT2BatchLinkProcess().df
+        df_db = df_db[df_db.batch == self.batch_name]
+
+        df_lever = df[df.action == "id_lever"]
+
+        def kikoo(row: pd.Series):
+            nonlocal lmt_reader
+
+            res = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=self.parameters.lever_loc)
+            print("youpi")
+            return row
+
+        for id_group, rows in df_lever.groupby("db_idx"):
+            db_file = df_db[df_db.db_idx == id_group].iloc[0].path
+
+            lmt_reader = LMTDBReader(Path(db_file))
+
+            rows.apply(kikoo, axis=1)
+            print("kikoo")
+
+
+
+        # for id_group, records in db_groups:
+        #     records.apply(kikoo)
+            # for idx, row in records.iterrows():
+            #     print("ok")
+
+
+
+    def _add_db_frame_info(self):
+
+        df_db = DBEventInfo(batch_name=self.batch_name).df
+        self.df[["db_idx", "db_frame"]] = df_db[["db_idx", "db_frame"]]
+
 
     def _find_transitions_error(self, df: pd.DataFrame):
 
@@ -504,14 +541,8 @@ class ImportBatch(BatchProcess):
 
     def initialize(self):
 
-        # # extract mice ids
-        # id_mice: set = set(self._df.rfid.unique())
-        #
-        # id_mice = id_mice - {np.nan, '0', 'na'}
-        # self.mice = id_mice
-
         # sort by time
-        self.df['time'] = pd.to_datetime(self.df['time'], format='mixed')
+        self.df['time'] = pd.to_datetime(self.df['time'], format='mixed', utc=True)
 
         # mo = MiceLocation(batch=self)
         # mo.compute()
@@ -564,282 +595,6 @@ class ImportBatch(BatchProcess):
             'rfid': str,
             'error': str,
         }
-
-class ExtractDBEventInfo(BatchProcess):
-
-
-
-    def __init__(self, batch_name: str, lmt_service: LMTService = Provide[Container.lmt_service]):
-        super().__init__(batch_name)
-        self.lmt_service = lmt_service
-
-    @property
-    def result_id(self) -> str:
-        pass
-
-    @property
-    def dtype(self) -> Dict:
-        pass
-
-    def _compute(self) -> pd.DataFrame:
-
-        df_ev = ImportBatch(batch_name=self.batch_name).df
-
-        for index, row in df_ev.iterrows():
-            date = row['time']
-            lmt_reader = self.lmt_service.get_lmt_reader(batch_name=self.batch_name, date=date)
-            frame = lmt_reader.get_corresponding_frame_number(date=date)
-
-            print("ok")
-
-
-        print("ok")
-
-
-# class ImportBatch(BatchProcess):
-#
-#     @inject
-#     def __init__(self, batch_name: str, data_service: DataService = Provide[Container.data_service]):
-#         super().__init__(batch_name=batch_name)
-#
-#         self._mice: List[str] = None
-#         self._mice_location: MiceLocation = None
-#         self.mice_sequence: MiceSequence = None
-#
-#         self._data_service = data_service
-#
-#     @staticmethod
-#     def load(batch_name: str) -> 'ImportBatch':
-#
-#         res = ImportBatch(batch_name=batch_name)
-#         res.compute()
-#
-#         return res
-#
-#     @property
-#     def mice(self) -> List[str]:
-#
-#         if self._mice is None:
-#             # extract mice ids
-#             id_mice: set = set(self._df.rfid.unique())
-#
-#             id_mice = id_mice - {np.nan, '0', 'na'}
-#             self._mice = id_mice
-#
-#         return self._mice
-#
-#     @property
-#     def mice_location(self) -> 'MiceLocation':
-#
-#         if self._mice_location is None:
-#             self._mice_location = MiceLocation(batch_name=self.batch_name)
-#
-#         return self._mice_location
-#
-#     def get_mice_occupation(self, location: str) -> 'MiceOccupation':
-#         return MiceOccupation(self.mice_location, location=location)
-#
-#     def get_percentage_lever_pressed(self) -> PercentageLeverPressed:
-#         return PercentageLeverPressed(self)
-#
-#     def get_percentage_complete_sequence(self):
-#         return PercentageCompleteSequence(self)
-#
-#     def lever_press(self) -> pd.DataFrame:
-#         df = self._df
-#         filtered = df[df['action'] == 'id_lever']
-#
-#         return filtered
-#
-#     def transitions_error(self) -> pd.DataFrame:
-#         df = self.transitions()
-#         filtered = df[df['error'] == 'ERROR']
-#         return filtered
-#
-#     def transitions(self) -> pd.DataFrame:
-#         df = self._df
-#         filtered = df[df['action'] == 'transition']
-#
-#         return filtered
-#
-#     @property
-#     def result_id(self) -> str:
-#         return f"{self.batch_name}_events"
-#
-#     def _compute(self) -> pd.DataFrame:
-#
-#         csv_str = self._data_service.get_csv_data(batch_name=self.batch_name)
-#
-#         cols = [
-#             'action',
-#             'device',
-#             'time',
-#             'rfid',
-#             'from_loc',
-#             'to_loc',
-#             'weight',
-#             'error',
-#             'direction',
-#             'activate',
-#             'liquids'
-#         ]
-#
-#         dtype = {
-#             'rfid': str,
-#             'error': str
-#         }
-#
-#         # df = pd.read_csv(csv_file, dtype=dtype, sep=";", names=cols, header=None)
-#         df = pd.read_csv(StringIO(csv_str), dtype=dtype, sep=";", names=cols, header=None)
-#         df[['day_since_start', 'trans_group']] = ''
-#
-#         # format have changed btw experiment, we have to check the dateformat
-#         old_date_format = '%d-%m-%Y %H:%M:%S'
-#
-#         try:
-#             date = pd.to_datetime(df['time'], format=old_date_format)
-#         except ValueError as error:
-#             # mixed instead of "%Y-%m-%dT%H:%M:%S.%f%z" or "ISO8601" because when ms is .000 pandas remove them and when saved in csv the format is not the same
-#             # and raise an error
-#             date = pd.to_datetime(df['time'], format="mixed")
-#
-#         df['time'] = date
-#         df.sort_values(by='time', inplace=True)
-#         df.reset_index(drop=True, inplace=True)
-#
-#         self._find_transitions_error(df)
-#         self._df = df
-#
-#         self._transition_error_correction()
-#
-#
-#         # add extra info
-#         self._add_transition_groups(self.df)
-#         self._add_days(self.df)
-#
-#         MiceLocation(batch_name=self.batch_name).compute(force_recompute=True)
-#
-#         return df
-#
-#     def _find_transitions_error(self, df: pd.DataFrame):
-#
-#         # reset error to empty
-#         df.error = ''
-#         transitions_df = df[df['action'] == 'transition'] #.reset_index(drop=True)
-#
-#         mice_list = transitions_df.rfid.unique()
-#
-#         for mouse in mice_list:
-#
-#             # detect error transitions
-#             tmp_df = transitions_df[transitions_df['rfid'] == mouse]
-#             tmp = tmp_df['to_loc'].shift(1)
-#             tmp.iloc[0] = "BLACK_BOX"
-#
-#             # if the destination of the previous transition is different than the next transition origin
-#             # need to mark the column in ERROR
-#             idx_error = tmp_df[tmp_df['from_loc'] != tmp].index
-#             df.loc[idx_error, 'error'] = "ERROR"
-#
-#
-#     def _add_transition_groups(self, df: pd.DataFrame):
-#
-#         last_num_group = 0
-#
-#         def get_num_trans_group(row: pd.Series):
-#
-#             nonlocal last_num_group
-#
-#             res = last_num_group
-#
-#             if row.action == 'transition':
-#                 last_num_group += 1
-#                 res = last_num_group
-#
-#             return res
-#
-#         df["trans_group"] = df.apply(get_num_trans_group, axis=1)
-#
-#     def _add_days(self, df: pd.DataFrame):
-#
-#         # extract first row to get the first datetime
-#         self.start_time = df.iloc[0].time
-#         # # extract last row to get the last datetime
-#         # self.end_time = df.iloc[-1].time
-#
-#         h_day_start: int = 19
-#         date_day_start = self.start_time.date()
-#
-#         def get_num_day(row: pd.Series):
-#
-#             delta_day: timedelta = (row.time.date() - date_day_start).days
-#             num_day = delta_day if row.time.hour < h_day_start else delta_day +1
-#
-#             return num_day
-#
-#         df["day_since_start"] = df.apply(get_num_day, axis=1)
-#
-#
-#     def initialize(self):
-#
-#         # # extract mice ids
-#         # id_mice: set = set(self._df.rfid.unique())
-#         #
-#         # id_mice = id_mice - {np.nan, '0', 'na'}
-#         # self.mice = id_mice
-#
-#         # sort by time
-#         self.df['time'] = pd.to_datetime(self.df['time'], format='mixed')
-#
-#         # mo = MiceLocation(batch=self)
-#         # mo.compute()
-#         # self._mice_location = mo
-#
-#
-#     def _transition_error_correction(self) -> bool:
-#
-#         df = self.transitions_error()
-#
-#         if df.empty:
-#             return False
-#         else:
-#             resolver = TransitionResolver(self)
-#             resolver.resolve()
-#
-#             df = self.transitions_error()
-#
-#             self.logger.error(f"{len(df)} transition errors found")
-#             for index, row in df.iterrows():
-#                 prev_loc = self.mice_location.get_mouse_location(time=row.time, mouse=row.rfid, just_before=True)
-#
-#                 # we add 1ms before a "fake transition" from prev_loc to transition error from loc
-#                 self.df.loc[index, 'error'] = ''
-#                 new_row = row.copy()
-#                 # susbstract 1 ms to keep transition consistent when sort by date
-#                 new_row.time -= pd.Timedelta(milliseconds=1)
-#                 new_row.device = 'correction'
-#                 new_row.from_loc = prev_loc
-#                 new_row.to_loc = row.from_loc
-#                 new_row.error = 'CORRECTED'
-#
-#                 self.df.loc[len(self.df)] = new_row
-#                 self.logger.error(
-#                     f"RFID {row.rfid} date:{row.time} from:{row.from_loc} to:{row.to_loc} previously:{prev_loc}")
-#
-#             self._df.sort_values(by='time', inplace=True)
-#             self._df.reset_index(drop=True, inplace=True)
-#
-#             return True
-#                 # # save after corrections
-#                 # self.save()
-#
-#
-#     @property
-#     def dtype(self) -> Dict:
-#         return {
-#             'rfid': str,
-#             'error': str
-#         }
 
 
 class MiceLocation(BatchProcess):
@@ -926,7 +681,7 @@ class MiceLocation(BatchProcess):
 
 
     def initialize(self):
-        self._df['time'] = pd.to_datetime(self._df['time'], utc=True)
+        self._df['time'] = pd.to_datetime(self._df['time'], format="mixed", utc=True)
 
         self.mice = ImportBatch(batch_name=self.batch_name).mice
 

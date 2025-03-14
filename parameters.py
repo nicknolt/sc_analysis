@@ -1,11 +1,13 @@
-from typing import List
+from typing import List, Tuple
 
 
 class Parameters:
 
-    def __init__(self, max_sequence_duration: int) -> None:
+    def __init__(self, max_sequence_duration: int, lever_loc: str, feeder_loc: str) -> None:
         
         self.max_sequence_duration = max_sequence_duration
+        self.lever_loc = tuple(map(lambda elem: int(elem), lever_loc.split(',')))
+        self.feeder_loc = tuple(map(lambda elem: int(elem), feeder_loc.split(',')))
 
         self._mice: List[str] = None
     

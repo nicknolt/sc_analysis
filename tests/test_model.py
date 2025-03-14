@@ -22,6 +22,11 @@ class TestModel(unittest.TestCase):
         basic_config_log()
         # config = Configuration(base_dir=Path('./resources'), result_dir=Path(r"C:\Users\Nicolas\Desktop\tmp\SC_OUTPUT"))
 
+    def test_tutu(self):
+        df = ImportBatch("XP9").df
+        print("ok")
+
+
     # def test_iso_format(self):
     #     date_str = "2024-09-06T16:32:14.723+02:00"
     #

@@ -20,14 +20,14 @@ class Action(Enum):
     TRANSITION = 1,
     LEVER_PRESS = 2
 
-class LinkXP2DB(Process):
-
-    def __init__(self):
-        super().__init__()
-
-    @property
-    def result_id(self) -> str:
-        return f"db_link"
+# class LinkXP2DB(Process):
+#
+#     def __init__(self):
+#         super().__init__()
+#
+#     @property
+#     def result_id(self) -> str:
+#         return f"db_link"
 
     
 

@@ -1,15 +1,17 @@
+import logging
 import os
 import subprocess
 import unittest
 from datetime import datetime
 from pathlib import Path
 
-from batch_process import ExtractDBEventInfo
+from batch_process import ImportBatch, DBEventInfo
 from common import ROOT_DIR
 from common_log import basic_config_log
 from container import Container
 from lmt.lmt_db_reader import LMTDBReader, DBInfo
 from lmt.lmt_service import LMTService
+import pandas as pd
 
 container = Container()
 container.config.from_ini(ROOT_DIR / "tests/resources/config.ini")
@@ -18,7 +20,56 @@ class TestLMTDBReader(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        basic_config_log()
+        basic_config_log(level=logging.DEBUG)
+
+
+    def test_import_batch(self):
+
+        df = ImportBatch(batch_name="SAMPLE_XP6").compute(force_recompute=True)
+        # p = DBEventInfo(batch_name="SAMPLE_XP6").compute()
+
+        print("ok")
+
+    def test_tmp_add_db_event_info(self):
+        from lmt.lmt2batch_link_process import LMT2BatchLinkProcess
+
+        lmt_service = container.lmt_service()
+
+        df_event = ImportBatch("XP6").df
+
+        current_reader: LMTDBReader = None
+        current_db_idx: int = None
+        nb_elem = len(df_event)
+
+        def get_db_idx(row: pd.Series):
+
+            nonlocal current_reader, current_db_idx
+
+            if (current_reader is None) or (not current_reader.is_date_inside(row['time'])):
+
+                if current_reader:
+                    current_reader.close()
+
+                current_reader, current_db_idx = lmt_service.get_lmt_reader("XP6", row['time'])
+
+            if current_reader is None:
+                num_frame = -1
+                current_db_idx = -1
+            else:
+                num_frame = current_reader.get_corresponding_frame_number(row['time'], close_connexion=False)
+            # print(f"{row.name}/{nb_elem}")
+            row["db_idx"] = current_db_idx
+            row["db_frame"] = num_frame
+
+            return row
+
+
+        df_event[["db_idx", "db_frame"]] = None #df_event.apply(get_db_idx, axis=1)
+        df_event = df_event.apply(get_db_idx, axis=1)
+
+        df_event.to_csv("./tutu.csv")
+
+        print("ok")
 
     def test_get_db_path(self):
         from lmt.lmt2batch_link_process import LMT2BatchLinkProcess

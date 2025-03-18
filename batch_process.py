@@ -438,39 +438,47 @@ class ImportBatch(BatchProcess):
         self._add_db_frame_info()
         self.save()
 
-        self._add_lmt_loc()
+        self._add_lmt_loc(event_name="id_lever")
+        self._add_lmt_loc(event_name="nose_poke")
 
         return df
 
-    def _add_lmt_loc(self):
+    def _add_lmt_loc(self, event_name: str):
         df = self.df
 
         df_db = LMT2BatchLinkProcess().df
         df_db = df_db[df_db.batch == self.batch_name]
 
-        df_lever = df[df.action == "id_lever"]
+        df_lever = df[df.action == event_name]
 
-        def kikoo(row: pd.Series):
+        if event_name == 'id_lever':
+            location = self.parameters.lever_loc
+        elif event_name == 'nose_poke':
+            location = self.parameters.feeder_loc
+        else:
+            raise Exception(f"Unable to deal with {event_name}")
+
+        def get_closest_animal(row: pd.Series):
             nonlocal lmt_reader
 
-            res = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=self.parameters.lever_loc)
-            print("youpi")
-            return row
+            res = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=location, close_connection=False)
+            # row['lmt_rfid'] = res
+
+            return res
 
         for id_group, rows in df_lever.groupby("db_idx"):
+
+            if id_group == -1:
+                continue
+
             db_file = df_db[df_db.db_idx == id_group].iloc[0].path
 
             lmt_reader = LMTDBReader(Path(db_file))
 
-            rows.apply(kikoo, axis=1)
-            print("kikoo")
+            df['lmt_rfid'] = rows.apply(get_closest_animal, axis=1)
 
 
-
-        # for id_group, records in db_groups:
-        #     records.apply(kikoo)
-            # for idx, row in records.iterrows():
-            #     print("ok")
+        print("FINITO")
 
 
 

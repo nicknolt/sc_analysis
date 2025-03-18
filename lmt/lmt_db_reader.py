@@ -1,7 +1,7 @@
 import math
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Tuple
 
@@ -101,34 +101,38 @@ class LMTDBReader:
         c.close()
         self.close()
 
-    def get_closest_animal(self, frame_number: int, location: Tuple[int, int]) -> str:
+    def get_closest_animal(self, frame_number: int, location: Tuple[int, int], close_connection: bool = True) -> str:
 
         connection = self.connexion
         c = connection.cursor()
 
         c.execute(
-            f'SELECT d.MASS_X, d.MASS_Y, a.RFID FROM DETECTION as d, ANIMAL as a WHERE d.FRAMENUMBER = ? AND d.ANIMALID == a.ID',
+            f'SELECT d.MASS_X, d.MASS_Y, a.RFID, f.TIMESTAMP FROM FRAME as f, DETECTION as d, ANIMAL as a WHERE d.FRAMENUMBER = ? AND d.ANIMALID == a.ID AND f.FRAMENUMBER = d.FRAMENUMBER',
             (frame_number,))
 
         rows = c.fetchall()
+
 
         min_dist: float = None
         min_rfid: str = None
 
         for row in rows:
-
+            ts = row[3]/1000
             dist = math.dist((row[0], row[1]), location)
 
             if min_dist is None or dist < min_dist:
                 min_dist = dist
                 min_rfid = row[2]
 
-
-        if min_dist > 60:
-            self.logger.warning(f"Min dist is {min_dist} for rfid '{min_rfid}' but is too far to be considered as pertinent")
+        if min_dist is None:
             return None
 
-        c.close()
+        if min_dist > 60:
+            self.logger.warning(f"Date: {datetime.fromtimestamp(ts)} Min dist is {min_dist} for rfid '{min_rfid}' but is too far to be considered as pertinent")
+            return None
+
+        if close_connection:
+            c.close()
 
         return min_rfid
 
@@ -152,6 +156,10 @@ class LMTDBReader:
         # pd.Timestamp to timestamp give local tz date as a GMT date, it is a wrong behavior (tested with older pandas version always the same results ...)
         # convert timestamp to python datetime and convert it to timestamp give the expected value
         # from_date_ts = date.to_pydatetime().timestamp() * 1000
+        # date need to be convert in utc +0 to be compared to ts of LMT DB
+        # and converted to tz unaware
+        # date_tz_unaware = date.astimezone(tz=timezone.utc).replace(tzinfo=None)
+        # from_date_ts = date.replace(tzinfo=None).timestamp() * 1000
         from_date_ts = date.timestamp() * 1000
 
         if expected_frame < 0:
@@ -170,6 +178,8 @@ class LMTDBReader:
         if row is None:
             self.logger.warning(f"Frame number not found for date {date} of timestamp {from_date_ts} expected frame {expected_frame}")
             return None
+
+        # delta_t = abs(date-datetime.fromtimestamp(row[1]/1000, tz=pytz.timezone("Europe/Paris"))).total_seconds()
 
         return row[0]
 

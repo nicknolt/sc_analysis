@@ -2,8 +2,11 @@ import logging
 import os
 import subprocess
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from io import StringIO
 from pathlib import Path
+
+import pytz
 
 from batch_process import ImportBatch, DBEventInfo
 from common import ROOT_DIR
@@ -22,11 +25,36 @@ class TestLMTDBReader(unittest.TestCase):
     def setUpClass(cls):
         basic_config_log(level=logging.DEBUG)
 
-
     def test_import_batch(self):
 
-        df = ImportBatch(batch_name="SAMPLE_XP6").compute(force_recompute=True)
+        df = ImportBatch(batch_name="XP8").compute()
         # p = DBEventInfo(batch_name="SAMPLE_XP6").compute()
+
+        print("ok")
+
+    def test_tmp_check_db_binding(self):
+        # naive_str = "2024-01-14 21:15:53"
+        # naive_date = datetime.strptime(naive_str, "%Y-%m-%d %H:%M:%S")
+        # naive_date_local_tz = naive_date.astimezone(timezone.utc)
+
+        date_str = "2024-01-14 21:15:53+01:00"
+        date = datetime.fromisoformat(date_str)
+        ts = date.timestamp()
+
+        date_changed = date.replace(tzinfo=None)
+
+        new_ts = date_changed.timestamp()
+
+        lmt_service = container.lmt_service()
+        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", date)
+        num_frame = lmt_reader.get_corresponding_frame_number(date - timedelta(hours=1))
+
+        # previous
+        # num_frame = 10871638
+        # \\192.168.25.177\SourisCity/SourisCity_2/Experience6mice3LMT_0_8/2024_01_10/corrected_2024_01_10.sqlite
+        ts = 1705263352998 / 1000
+
+        date_from_db = datetime.fromtimestamp(ts)
 
         print("ok")
 
@@ -153,6 +181,47 @@ class TestLMTDBReader(unittest.TestCase):
                 print(grepOut)
             except subprocess.CalledProcessError as grepexc:
                 print("error code", grepexc.returncode, grepexc.output)
+
+    def test_tmp_utility_restore_file_date(self):
+        dir_path = Path(r"\\192.168.25.175\souriscity\SourisCity2.0\LMT_DATA\Experience6mice3LMT_0_8")
+
+        file: Path
+        for file in dir_path.glob("./**/*.*"):
+            ts = os.path.getmtime(file)
+            new_m_date = datetime.fromtimestamp(ts) + timedelta(hours=1)
+            # os.utime(file, (new_m_date.timestamp(), new_m_date.timestamp()))
+            # os.path.set
+            print(new_m_date)
+
+    def test_tmp_utility_correct_XP8_date(self):
+        old_date_format = '%d-%m-%Y %H:%M:%S'
+        tz_str = pytz.timezone("Europe/Paris")
+
+        # substract one hour to all events
+        filename = Path(r"/tests/resources/data/XP8/1_10_17_37_56.csv.bak")
+        str_io = StringIO()
+
+        with open(filename, 'r') as f:
+            for line in f:
+                tab_line = line.split(';')
+                date_str = tab_line[2]
+                date = datetime.strptime(date_str, old_date_format)
+                new_date = (date - timedelta(hours=1)).astimezone(tz=tz_str)
+
+                tab_line[2] = str(new_date)
+
+                new_line = str.join(';', tab_line)
+                str_io.write(new_line)
+
+
+        f_output = Path(r"/tests/resources/data/XP8/1_10_17_37_56_corrected.csv.bak")
+        with open(f_output, 'w+') as f:
+            f.write(str_io.getvalue())
+
+
+        # res = container.data_service().get_raw_df("XP8")
+        print("ok")
+        pass
 
 if __name__ == '__main__':
     unittest.main()

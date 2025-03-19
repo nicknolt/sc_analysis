@@ -22,7 +22,6 @@ class LMTService:
 
         return res
 
-
     def get_db_infos(self) -> List['DBInfo']:
 
         self.logger.info(f"Getting DB infos in directory '{self.lmt_dir}'")

@@ -321,7 +321,8 @@ class DBEventInfo(BatchProcess):
             else:
                 num_frame = current_reader.get_corresponding_frame_number(row['time'], close_connexion=False)
 
-            self.logger.debug(f"{row.name}/{nb_elem}")
+            if row.name % 100 == 0:
+                self.logger.debug(f"{row.name}/{nb_elem}")
 
             row["db_idx"] = current_db_idx
             row["db_frame"] = num_frame
@@ -459,17 +460,24 @@ class ImportBatch(BatchProcess):
             raise Exception(f"Unable to deal with {event_name}")
 
         def get_closest_animal(row: pd.Series):
+
             nonlocal lmt_reader
+
+            res_row = pd.Series()
+            res_row['lmt_rfid'] = None
+            res_row['lmt_error'] = None
 
             try:
                 res = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=location, close_connection=False)
+                res_row['lmt_rfid'] = res
             except Exception as e:
                 err_msg = f"Unable to found closest animal for event: {row['action']} date: {row['time']} cause: {e}"
                 self.logger.error(err_msg)
-                res = None
-            # row['lmt_rfid'] = res
+                res_row['lmt_error'] = "KIKOO"
 
-            return res
+
+
+            return res_row
 
         for id_group, rows in df_lever.groupby("db_idx"):
 
@@ -480,10 +488,8 @@ class ImportBatch(BatchProcess):
 
             lmt_reader = LMTDBReader(Path(db_file))
 
-            df['lmt_rfid'] = rows.apply(get_closest_animal, axis=1)
+            df[['lmt_rfid', 'lmt_error']] = rows.apply(get_closest_animal, axis=1)
 
-
-        print("FINITO")
 
 
 

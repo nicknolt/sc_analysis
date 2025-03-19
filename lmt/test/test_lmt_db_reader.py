@@ -32,6 +32,30 @@ class TestLMTDBReader(unittest.TestCase):
 
         print("ok")
 
+    def test_get_closest_animal(self):
+
+        lmt_service = container.lmt_service()
+
+        date_str = "2024-01-18 10:51:00+01:00"
+        date = datetime.fromisoformat(date_str)
+
+        delta = (1931600 - 1931482)/30
+        feeder_loc = (100, 200)
+        lever_loc = (410,200)
+        loc = lever_loc
+
+        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", date)
+        frame_number = lmt_reader.get_corresponding_frame_number(date)
+        res = lmt_reader.get_closest_animal(frame_number=frame_number, location=loc)
+
+        print("ok")
+        # lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", date)
+        #
+        # frame_number = lmt_reader.get_corresponding_frame_number(date)
+        #
+        # lmt_reader.get_closest_animal(frame_number=frame_number, location=())
+
+
     def test_tmp_check_db_binding(self):
         # naive_str = "2024-01-14 21:15:53"
         # naive_date = datetime.strptime(naive_str, "%Y-%m-%d %H:%M:%S")
@@ -188,7 +212,7 @@ class TestLMTDBReader(unittest.TestCase):
         file: Path
         for file in dir_path.glob("./**/*.*"):
             ts = os.path.getmtime(file)
-            new_m_date = datetime.fromtimestamp(ts) + timedelta(hours=1)
+            new_m_date = datetime.fromtimestamp(ts) - timedelta(hours=1)
             # os.utime(file, (new_m_date.timestamp(), new_m_date.timestamp()))
             # os.path.set
             print(new_m_date)

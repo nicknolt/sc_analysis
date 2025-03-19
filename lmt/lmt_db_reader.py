@@ -2,12 +2,13 @@ import math
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 import pytz
-
+import pandas as pd
 from common_log import create_logger
 
 
@@ -21,6 +22,15 @@ class DBInfo:
     @property
     def duration(self) -> float:
         return (self.date_end - self.date_start).total_seconds() / 60 / 60 / 24
+
+class LMTDBException(Exception):
+
+    class ExceptionType(Enum):
+        TOO_FAR = 0
+        # B = auto()
+
+    def __init__(self, message: str, error_type: ExceptionType):
+        super().__init__(message)
 
 
 class LMTDBReader:
@@ -106,30 +116,45 @@ class LMTDBReader:
         connection = self.connexion
         c = connection.cursor()
 
-        # with timestamp, not really usefull
         # c.execute(
-        #     f'SELECT d.MASS_X, d.MASS_Y, a.RFID, f.TIMESTAMP FROM FRAME as f, DETECTION as d, ANIMAL as a WHERE d.FRAMENUMBER = ? AND d.ANIMALID == a.ID AND f.FRAMENUMBER = d.FRAMENUMBER',
-        #     (frame_number,))
+        #     f'SELECT d.MASS_X, d.MASS_Y, a.RFID FROM DETECTION as d, ANIMAL as a WHERE d.FRAMENUMBER = ? AND d.ANIMALID == a.ID',
+        #     (frame_number,)
 
-        c.execute(
-            f'SELECT d.MASS_X, d.MASS_Y, a.RFID FROM DETECTION as d, ANIMAL as a WHERE d.FRAMENUMBER = ? AND d.ANIMALID == a.ID',
-            (frame_number,))
 
-        rows = c.fetchall()
+        delta_frame = 5
 
+        # ORDER BY FRAME DISTANCE OF THE REF FRAME
+        request = f"""SELECT d.MASS_X, d.MASS_Y, a.RFID, d.FRAMENUMBER FROM
+            DETECTION as d, ANIMAL as a 
+        WHERE 
+            d.FRAMENUMBER BETWEEN {frame_number - delta_frame} AND {frame_number + delta_frame}
+            AND a.ID = d.ANIMALID
+            ORDER BY ABS({frame_number}-d.FRAMENUMBER)"""
+
+
+        c.execute(request)
 
         min_dist: float = None
         min_rfid: str = None
 
-        for row in rows:
-            dist = math.dist((row[0], row[1]), location)
+        df = pd.read_sql_query(request, connection)
+        gb = df.groupby('FRAMENUMBER')
 
-            if min_dist is None or dist < min_dist:
-                min_dist = dist
-                min_rfid = row[2]
+        # iterate each group ordered by time precision from the reference num frame
+        for x, group in gb:
+            for idx, row in group.iterrows():
+                dist = math.dist((row.iloc[0], row.iloc[1]), location)
+
+                if min_dist is None or dist < min_dist:
+                    min_dist = dist
+                    min_rfid = row.iloc[2]
+
+            # stop if a min < 60 has been found
+            if min_dist <= 60:
+                break
 
         if min_dist is None:
-            err_msg = f"No detection for at frame {frame_number}"
+            err_msg = f"No detection at frame {frame_number}"
             raise Exception(err_msg)
 
         if min_dist > 60:
@@ -140,7 +165,7 @@ class LMTDBReader:
             # return None
 
         if close_connection:
-            c.close()
+            connection.close()
 
         return min_rfid
 

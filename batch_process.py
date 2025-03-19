@@ -461,7 +461,12 @@ class ImportBatch(BatchProcess):
         def get_closest_animal(row: pd.Series):
             nonlocal lmt_reader
 
-            res = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=location, close_connection=False)
+            try:
+                res = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=location, close_connection=False)
+            except Exception as e:
+                err_msg = f"Unable to found closest animal for event: {row['action']} date: {row['time']} cause: {e}"
+                self.logger.error(err_msg)
+                res = None
             # row['lmt_rfid'] = res
 
             return res

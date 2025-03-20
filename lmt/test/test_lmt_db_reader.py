@@ -27,7 +27,7 @@ class TestLMTDBReader(unittest.TestCase):
 
     def test_import_batch(self):
 
-        df = ImportBatch(batch_name="XP8").compute()
+        df = ImportBatch(batch_name="XP8").compute(force_recompute=True)
         # p = DBEventInfo(batch_name="SAMPLE_XP6").compute()
 
         print("ok")
@@ -35,8 +35,8 @@ class TestLMTDBReader(unittest.TestCase):
     def test_get_closest_animal(self):
 
         lmt_service = container.lmt_service()
-
-        date_str = "2024-01-18 10:51:00+01:00"
+        date_str = "2024-01-17 10:42:19+01:00"
+        # date_str = "2024-01-18 10:51:00+01:00"
         date = datetime.fromisoformat(date_str)
 
         delta = (1931600 - 1931482)/30
@@ -121,6 +121,15 @@ class TestLMTDBReader(unittest.TestCase):
 
         df_event.to_csv("./tutu.csv")
 
+        print("ok")
+
+    def test_tmp_groupy_etc(self):
+        df = ImportBatch("XP8").df
+
+        df_event = df[df.action == 'nose_poke']
+        df['extra_field'] = df_event.apply(lambda row: "NP", axis=1)
+        df_event = df[df.action == 'id_lever']
+        df['extra_field'] = df_event.apply(lambda row: "LP", axis=1)
         print("ok")
 
     def test_get_db_path(self):

@@ -26,11 +26,13 @@ class DBInfo:
 class LMTDBException(Exception):
 
     class ExceptionType(Enum):
-        TOO_FAR = 0
+        NO_DETECTION = 0
+        TOO_FAR = 1
         # B = auto()
 
     def __init__(self, message: str, error_type: ExceptionType):
         super().__init__(message)
+        self.error_type = error_type
 
 
 class LMTDBReader:
@@ -116,11 +118,6 @@ class LMTDBReader:
         connection = self.connexion
         c = connection.cursor()
 
-        # c.execute(
-        #     f'SELECT d.MASS_X, d.MASS_Y, a.RFID FROM DETECTION as d, ANIMAL as a WHERE d.FRAMENUMBER = ? AND d.ANIMALID == a.ID',
-        #     (frame_number,)
-
-
         delta_frame = 5
 
         # ORDER BY FRAME DISTANCE OF THE REF FRAME
@@ -130,7 +127,6 @@ class LMTDBReader:
             d.FRAMENUMBER BETWEEN {frame_number - delta_frame} AND {frame_number + delta_frame}
             AND a.ID = d.ANIMALID
             ORDER BY ABS({frame_number}-d.FRAMENUMBER)"""
-
 
         c.execute(request)
 
@@ -155,11 +151,11 @@ class LMTDBReader:
 
         if min_dist is None:
             err_msg = f"No detection at frame {frame_number}"
-            raise Exception(err_msg)
+            raise LMTDBException(err_msg, LMTDBException.ExceptionType.NO_DETECTION)
 
         if min_dist > 60:
             err_msg = f"Min dist is {min_dist:.2f} for rfid '{min_rfid}' but is too far to be considered as pertinent"
-            raise Exception(err_msg)
+            raise LMTDBException(err_msg, LMTDBException.ExceptionType.TOO_FAR)
 
             # self.logger.warning(f"Date: {datetime.fromtimestamp(ts)} Min dist is {min_dist} for rfid '{min_rfid}' but is too far to be considered as pertinent")
             # return None

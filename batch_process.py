@@ -6,6 +6,7 @@ from typing import List, Dict
 
 import numpy as np
 import pandas as pd
+import pytz
 from dependency_injector.wiring import inject, Provide
 from pandas.core import series
 from pandas.core.groupby import GroupBy
@@ -452,18 +453,11 @@ class ImportBatch(BatchProcess):
         if 'db_error' not in df:
             df['db_error'] = None
             df['lmt_rfid'] = None
+            df['lmt_db_frame'] = None
+            df['lmt_date'] = None
 
         df_db = LMT2BatchLinkProcess().df
         df_db = df_db[df_db.batch == self.batch_name]
-
-        # df_event = df[df.action == event_name]
-        #
-        # if event_name == 'id_lever':
-        #     location = self.parameters.lever_loc
-        # elif event_name == 'nose_poke':
-        #     location = self.parameters.feeder_loc
-        # else:
-        #     raise Exception(f"Unable to deal with {event_name}")
 
         def get_closest_animal(row: pd.Series, lmt_reader: LMTDBReader):
 
@@ -472,11 +466,13 @@ class ImportBatch(BatchProcess):
             elif row.action == 'nose_poke':
                 location = self.parameters.feeder_loc
             else:
-                return row[['lmt_rfid', 'db_error']]
+                return row
 
             try:
-                res = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=location, close_connection=False)
-                row['lmt_rfid'] = res
+                rfid, frame, ts = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=location, close_connection=False)
+                row['lmt_rfid'] = rfid
+                row['lmt_db_frame'] = frame
+                row['lmt_date'] = datetime.datetime.fromtimestamp(ts).astimezone(tz=pytz.timezone("Europe/Paris"))
             except LMTDBException as e:
                 err_msg = f"Unable to found closest animal for event: {row['action']} date: {row['time']} cause: {e}"
                 self.logger.error(err_msg)

@@ -15,6 +15,9 @@ from container import Container
 from lmt.lmt_db_reader import LMTDBReader, DBInfo
 from lmt.lmt_service import LMTService
 import pandas as pd
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.use('Qt5Agg')
 
 container = Container()
 container.config.from_ini(ROOT_DIR / "tests/resources/config.ini")
@@ -24,25 +27,70 @@ class TestLMTDBReader(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         basic_config_log(level=logging.DEBUG)
+        logging.getLogger("matplotlib").setLevel(logging.WARNING)
+
+    def test_get_trajectory(self):
+
+        #  https://stackoverflow.com/questions/43913457/how-do-i-name-columns-in-a-values-clause
+
+        lmt_service = container.lmt_service()
+
+        date_str = "2024-01-17 21:09:24+01:00"
+        date = datetime.fromisoformat(date_str)
+
+        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", date)
+
+        res = lmt_reader.get_trajectory(date_start=date, duration_s=6, rfid="001043737108")
+
+        plt.plot(res.X, res.Y)
+        plt.show()
+        print('ok')
+
+    def test_get_many_trajectories(self):
+        lmt_service = container.lmt_service()
+
+        df = ImportBatch(batch_name="XP8").df
+
+        rfid = "001043737108"
+
+        df_filt = df[(df["rfid"] == rfid) & (df['action'] == "id_lever")]
+
+        for idx, row in df_filt.iterrows():
+
+            date = row['time']
+
+            lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", date)
+
+            res = lmt_reader.get_trajectory(date_start=date, duration_s=6, rfid="001043737108")
+
+            plt.plot(res.X, res.Y)
+
+        plt.show()
+
+
+
 
     def test_import_batch(self):
 
-        df = ImportBatch(batch_name="XP8").compute(force_recompute=True)
+        df = ImportBatch(batch_name="XP8").compute()
         # p = DBEventInfo(batch_name="SAMPLE_XP6").compute()
+
+        df_rfid = df[df.lmt_rfid != df.rfid]
 
         print("ok")
 
     def test_get_closest_animal(self):
 
         lmt_service = container.lmt_service()
-        date_str = "2024-01-17 10:42:19+01:00"
+        date_str = "2024-01-17 21:09:24+01:00"
+        # date_str = "2024-01-17 10:42:19+01:00"
         # date_str = "2024-01-18 10:51:00+01:00"
         date = datetime.fromisoformat(date_str)
 
         delta = (1931600 - 1931482)/30
         feeder_loc = (100, 200)
         lever_loc = (410,200)
-        loc = lever_loc
+        loc = feeder_loc
 
         lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", date)
         frame_number = lmt_reader.get_corresponding_frame_number(date)

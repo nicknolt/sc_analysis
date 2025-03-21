@@ -1,7 +1,7 @@
 import math
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Tuple
@@ -113,37 +113,51 @@ class LMTDBReader:
         c.close()
         self.close()
 
-    def get_closest_animal(self, frame_number: int, location: Tuple[int, int], close_connection: bool = True) -> str:
+    def get_closest_animal(self, frame_number: int, location: Tuple[int, int], close_connection: bool = True) -> Tuple[str, int, float]:
 
         connection = self.connexion
         c = connection.cursor()
 
-        delta_frame = 5
+        # due to first record without ms expected frame could be 30 frames later
+        # we are looking into this interval and stop at the first group of frame corresponding to distance criteria
+        delta_frame = 20
 
         # ORDER BY FRAME DISTANCE OF THE REF FRAME
-        request = f"""SELECT d.MASS_X, d.MASS_Y, a.RFID, d.FRAMENUMBER FROM
-            DETECTION as d, ANIMAL as a 
+        request = f"""SELECT d.MASS_X, d.MASS_Y, a.RFID, d.FRAMENUMBER, f.TIMESTAMP FROM
+            DETECTION as d, ANIMAL as a, FRAME as f 
         WHERE 
-            d.FRAMENUMBER BETWEEN {frame_number - delta_frame} AND {frame_number + delta_frame}
-            AND a.ID = d.ANIMALID
-            ORDER BY ABS({frame_number}-d.FRAMENUMBER)"""
+            d.FRAMENUMBER BETWEEN {frame_number} AND {frame_number + delta_frame}
+        AND f.FRAMENUMBER = d.FRAMENUMBER
+        AND a.ID = d.ANIMALID"""
+
+        self.logger.debug(f"QUERY = {request}")
+        # request = f"""SELECT d.MASS_X, d.MASS_Y, a.RFID, d.FRAMENUMBER, ABS({frame_number}-d.FRAMENUMBER) as distance FROM
+        #     DETECTION as d, ANIMAL as a
+        # WHERE
+        #     d.FRAMENUMBER BETWEEN {frame_number - delta_frame} AND {frame_number + delta_frame}
+        #     AND a.ID = d.ANIMALID
+        #     ORDER BY distance"""
 
         c.execute(request)
 
         min_dist: float = None
         min_rfid: str = None
+        min_frame: int = None
+        min_ts: float = None
 
         df = pd.read_sql_query(request, connection)
         gb = df.groupby('FRAMENUMBER')
 
         # iterate each group ordered by time precision from the reference num frame
-        for x, group in gb:
+        for distance, group in gb:
             for idx, row in group.iterrows():
                 dist = math.dist((row.iloc[0], row.iloc[1]), location)
 
                 if min_dist is None or dist < min_dist:
                     min_dist = dist
                     min_rfid = row.iloc[2]
+                    min_frame = int(row.iloc[3])
+                    min_ts = float(row.iloc[4])/1000
 
             # stop if a min < 60 has been found
             if min_dist <= 60:
@@ -163,8 +177,36 @@ class LMTDBReader:
         if close_connection:
             connection.close()
 
-        return min_rfid
+        return min_rfid, min_frame, min_ts
 
+    def get_trajectory(self, date_start: datetime, duration_s: int, rfid: str, close_connexion: bool = True):
+
+        start_frame = self.get_corresponding_frame_number(date=date_start, close_connexion=close_connexion)
+        end_frame = self.get_corresponding_frame_number(date=date_start + timedelta(seconds=duration_s), close_connexion=close_connexion)
+
+        connection = self.connexion
+
+        query = f"""
+            SELECT 
+                d.MASS_X as X, d.MASS_Y as Y 
+            FROM 
+                DETECTION as d, ANIMAL as a
+            WHERE 
+                d.FRAMENUMBER BETWEEN {start_frame} and {end_frame} AND d.ANIMALID = a.ID AND a.RFID = '{rfid}'
+        """
+
+        self.logger.debug(f"QUERY = {query}")
+
+        df = pd.read_sql_query(query, connection)
+
+        # c.execute(
+        #     f'SELECT framenumber, timestamp FROM frame WHERE framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame} ORDER BY ABS(? - timestamp) ASC LIMIT 1',
+        #     (from_date_ts,))
+
+        if close_connexion:
+            connection.close()
+
+        return df
 
     def get_corresponding_frame_number(self, date: datetime, close_connexion: bool = True) -> int:
 
@@ -207,8 +249,6 @@ class LMTDBReader:
         if row is None:
             self.logger.warning(f"Frame number not found for date {date} of timestamp {from_date_ts} expected frame {expected_frame}")
             return None
-
-        # delta_t = abs(date-datetime.fromtimestamp(row[1]/1000, tz=pytz.timezone("Europe/Paris"))).total_seconds()
 
         return row[0]
 

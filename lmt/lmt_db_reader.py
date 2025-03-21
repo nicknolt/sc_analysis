@@ -198,7 +198,7 @@ class LMTDBReader:
             WITH T(id, frame_start, frame_end) AS (
 			VALUES {query_val_str})
 			SELECT 
-                T.*, d.MASS_X, d.MASS_Y
+                T.*, d.MASS_X as X, d.MASS_Y as Y
             FROM 
                 DETECTION as d, T, ANIMAL as a
 			WHERE 
@@ -210,7 +210,10 @@ class LMTDBReader:
 
         df = pd.read_sql_query(query, self.connexion)
 
-        print("OKI")
+        self.connexion.close()
+
+        return df
+
 
 
     def get_trajectory(self, date_start: datetime, duration_s: int, rfid: str, close_connexion: bool = True):

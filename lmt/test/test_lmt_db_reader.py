@@ -55,6 +55,11 @@ class TestLMTDBReader(unittest.TestCase):
         lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", df_filt['time'].iloc[0])
 
         res = lmt_reader.get_trajectories(df_filt['time'].tolist(), duration_s=6, rfid="001043737108")
+
+        for gp_id, gp_rows in res.groupby("id"):
+            plt.plot(gp_rows.X, gp_rows.Y)
+
+        plt.show()
         print("kikoo")
 
     def test_get_many_trajectories(self):

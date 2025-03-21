@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Tuple, List
 
 import numpy as np
 import pytz
@@ -178,6 +178,40 @@ class LMTDBReader:
             connection.close()
 
         return min_rfid, min_frame, min_ts
+
+    def get_trajectories(self, date_list: List[datetime], duration_s: int, rfid: str):
+
+        frame_values = dict()
+        for id, date in enumerate(date_list):
+            start_frame = self.get_corresponding_frame_number(date=date, close_connexion=False)
+            end_frame = self.get_corresponding_frame_number(date=date + timedelta(seconds=duration_s),
+                                                            close_connexion=False)
+            frame_values[id] = {
+                             "start_frame": start_frame,
+                             "end_frame": end_frame
+            }
+        query_values = [str((k, v["start_frame"], v["end_frame"])) for k, v in frame_values.items()]
+        query_val_str = ','.join(query_values)
+        print("ok")
+
+        query = f"""
+            WITH T(id, frame_start, frame_end) AS (
+			VALUES {query_val_str})
+			SELECT 
+                T.*, d.MASS_X, d.MASS_Y
+            FROM 
+                DETECTION as d, T, ANIMAL as a
+			WHERE 
+			    d.ANIMALID = a.ID AND a.RFID = '{rfid}'
+				AND d.FRAMENUMBER BETWEEN T.frame_start AND T.frame_end 
+        """
+
+        self.logger.debug(f"QUERY = {query}")
+
+        df = pd.read_sql_query(query, self.connexion)
+
+        print("OKI")
+
 
     def get_trajectory(self, date_start: datetime, duration_s: int, rfid: str, close_connexion: bool = True):
 

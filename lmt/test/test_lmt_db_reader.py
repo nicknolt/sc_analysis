@@ -46,6 +46,17 @@ class TestLMTDBReader(unittest.TestCase):
         plt.show()
         print('ok')
 
+    def test_get_trajectories(self):
+        lmt_service = container.lmt_service()
+        df = ImportBatch(batch_name="XP8").df
+        rfid = "001043737108"
+        df_filt = df[(df["rfid"] == rfid) & (df['action'] == "id_lever") & (df["day_since_start"] == 2)]
+
+        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", df_filt['time'].iloc[0])
+
+        res = lmt_reader.get_trajectories(df_filt['time'].tolist(), duration_s=6, rfid="001043737108")
+        print("kikoo")
+
     def test_get_many_trajectories(self):
         lmt_service = container.lmt_service()
 

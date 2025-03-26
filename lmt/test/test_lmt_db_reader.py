@@ -29,6 +29,31 @@ class TestLMTDBReader(unittest.TestCase):
         basic_config_log(level=logging.DEBUG)
         logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
+
+    # def test_tmp(self):
+    #     date_str = "2023-09-10 23:54:36+02:00"
+    #     date = datetime.fromisoformat(date_str).astimezone(tz=pytz.timezone("Europe/Paris"))
+    #
+    #
+    #     print("ok")
+
+    def test_tmp2(self):
+        date_str = "2023-09-10 23:54:36+02:00"
+        date = datetime.fromisoformat(date_str).astimezone(tz=pytz.timezone("Europe/Paris"))
+
+        lmt_service = container.lmt_service()
+        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP5", date)
+        frame_number = lmt_reader.get_corresponding_frame_number(date)
+
+
+        print("ok")
+        # loc = container.parameters().lever_loc
+        #
+        # res = lmt_reader.get_closest_animal_batch(frame_numbers=[frame_number], location=loc)
+
+
+        print("ok")
+
     def test_get_trajectory(self):
 
         #  https://stackoverflow.com/questions/43913457/how-do-i-name-columns-in-a-values-clause
@@ -112,8 +137,14 @@ class TestLMTDBReader(unittest.TestCase):
 
     def test_import_batch(self):
 
-        df = ImportBatch(batch_name="XP8").compute(force_recompute=True)
+        # batch_name = "XP8"
+        batch_name = "XP5"
+
+        # df = ImportBatch(batch_name="XP8").compute(force_recompute=True)
+        df = ImportBatch(batch_name=batch_name).compute(force_recompute=True)
         # p = DBEventInfo(batch_name="SAMPLE_XP6").compute()
+
+        # infos = container.data_service().get_batch_info(batch_name)
 
         # df_rfid = df[df.lmt_rfid != df.rfid]
 

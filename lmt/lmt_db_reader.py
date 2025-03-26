@@ -138,8 +138,11 @@ class LMTDBReader:
                 """
 
         # self.logger.debug(f"QUERY = {query}")
+        self.logger.debug("Query start")
 
         df = pd.read_sql_query(query, self.connexion, dtype={'lmt_rfid': str})
+
+        self.logger.debug("Query end")
 
         df['db_error'] = ''
 
@@ -320,7 +323,37 @@ class LMTDBReader:
 
         expected_frame = int(delta_t * 30)
 
-        c = connection.cursor()
+        search_offset = 10000
+
+        query = f"""
+                SELECT 
+                    framenumber, timestamp FROM frame 
+                WHERE 
+                    framenumber IN ({expected_frame}, {expected_frame + search_offset})
+        """
+
+        df = pd.read_sql_query(query, connection)
+
+        ts_date = date.timestamp()
+
+        ts_a = df.iloc[0]['TIMESTAMP']/1000
+        ts_b = df.iloc[1]['TIMESTAMP']/1000
+
+        print("ok")
+
+    def get_corresponding_frame_number_ori(self, date: datetime, close_connexion: bool = True) -> int:
+
+        if not (self.date_start < date < self.date_end):
+            raise ValueError(f"Date {date} is out of range [{self.date_start}, {self.date_end}]")
+
+        connection = self.connexion
+        # connection = sqlite3.connect(self.db_path)
+
+        # every 500 frames (1650 ms) LMT recording delay the next frame for 220 ms
+        delta_t = (date - self.date_start).total_seconds()
+
+        expected_frame = int(delta_t * 30)
+
         search_offset = 10000
 
         # pd.Timestamp to timestamp give local tz date as a GMT date, it is a wrong behavior (tested with older pandas version always the same results ...)
@@ -334,20 +367,32 @@ class LMTDBReader:
 
         if expected_frame < 0:
             raise Exception(f"Expected frame should be positive ({expected_frame})")
-        #
-        c.execute(
-            f'SELECT framenumber, timestamp FROM frame WHERE framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame} ORDER BY ABS(? - timestamp) ASC LIMIT 1',
-            (from_date_ts,))
 
-        row = c.fetchone()
-        c.close()
+        query = f"""
+                SELECT 
+                    framenumber, timestamp FROM frame 
+                WHERE 
+                    framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame} ORDER BY ABS({from_date_ts} - timestamp) ASC LIMIT 1
+                """
+
+        df = pd.read_sql_query(query, connection)
+
+        row = df.iloc[0]
+        ts_res = row["TIMESTAMP"] / 1000
+        res_frame = row["FRAMENUMBER"]
+
+        delta_t = abs(ts_res - date.timestamp())
+
+        if delta_t > (1/30):
+            err_msg = f"Corresponding frame '{res_frame}' is not close too searched date (delta_s={delta_t})"
+            raise Exception(err_msg)
 
         if close_connexion:
             self.close()
-        
-        if row is None:
-            self.logger.warning(f"Frame number not found for date {date} of timestamp {from_date_ts} expected frame {expected_frame}")
-            return None
 
-        return row[0]
+        # if df.empty:
+        #     self.logger.warning(f"Frame number not found for date {date} of timestamp {from_date_ts} expected frame {expected_frame}")
+        #     return None
+
+        return row["FRAMENUMBER"]
 

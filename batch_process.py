@@ -449,7 +449,7 @@ class ImportBatch(BatchProcess):
 
     def _add_lmt_loc(self) -> pd.DataFrame:
 
-        df = self._df.iloc[::1000, :]
+        df = self._df.iloc[::100, :]
 
         df[['lmt_rfid', 'lmt_db_frame', 'lmt_date', 'db_error']] = None
 

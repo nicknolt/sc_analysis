@@ -350,13 +350,14 @@ class DBEventInfo(BatchProcess):
 class ImportBatch(BatchProcess):
 
     @inject
-    def __init__(self, batch_name: str, data_service: DataService = Provide[Container.data_service]):
+    def __init__(self, batch_name: str, data_service: DataService = Provide[Container.data_service], lmt_service: LMTService = Provide[Container.lmt_service]):
         super().__init__(batch_name=batch_name)
 
         self._mice: List[str] = None
         self._mice_location: MiceLocation = None
         self.mice_sequence: MiceSequence = None
         self._data_service = data_service
+        self._lmt_service = lmt_service
 
 
     @staticmethod
@@ -447,51 +448,99 @@ class ImportBatch(BatchProcess):
         return df
 
     def _add_lmt_loc(self) -> pd.DataFrame:
-        df = self.df
 
-        # create these columns if not exists
-        if 'db_error' not in df:
-            df['db_error'] = None
-            df['lmt_rfid'] = None
-            df['lmt_db_frame'] = None
-            df['lmt_date'] = None
+        df = self._df.iloc[::1000, :]
 
-        df_db = LMT2BatchLinkProcess().df
-        df_db = df_db[df_db.batch == self.batch_name]
+        df[['lmt_rfid', 'lmt_db_frame', 'lmt_date', 'db_error']] = None
 
-        def get_closest_animal(row: pd.Series, lmt_reader: LMTDBReader):
+        events = ["nose_poke", "id_lever"]
+        location = None
 
-            if row.action == 'id_lever':
+
+        for event in events:
+
+            cpt = 0
+
+            self.logger.debug(f"LMT LOC for event : {event}")
+            df_events = df[(df["action"] == event) & (df["db_idx"] != -1)]
+
+            if event == "id_lever":
                 location = self.parameters.lever_loc
-            elif row.action == 'nose_poke':
+            elif event == "nose_poke":
                 location = self.parameters.feeder_loc
-            else:
-                return row
 
-            try:
-                rfid, frame, ts = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=location, close_connection=False)
-                row['lmt_rfid'] = rfid
-                row['lmt_db_frame'] = frame
-                row['lmt_date'] = datetime.datetime.fromtimestamp(ts).astimezone(tz=pytz.timezone("Europe/Paris"))
-            except LMTDBException as e:
-                err_msg = f"Unable to found closest animal for event: {row['action']} date: {row['time']} cause: {e}"
-                self.logger.error(err_msg)
-                row['db_error'] = e.error_type.name
+            groups = df_events.groupby("db_idx", sort=True)
+            for id_db, rows in groups:
 
-            return row
+                cpt += 1
+                self.logger.debug(f"DB {id_db} ({cpt}/{len(groups)})")
+                date = rows.time.iloc[0]
+                lmt_reader, db_idx = self._lmt_service.get_lmt_reader(self.batch_name, date)
 
-        df.loc[df.db_idx == -1, 'db_error'] = "NO_DB"
+                frame_number_list = rows["db_frame"].tolist()
 
-        for id_group, rows in df.groupby("db_idx"):
+                close_df = lmt_reader.get_closest_animal_batch(frame_numbers=frame_number_list,
+                                                               location=location)
 
-            if id_group == -1:
-                continue
 
-            db_file = df_db[df_db.db_idx == id_group].iloc[0].path
-            lmt_reader = LMTDBReader(Path(db_file))
-            df.update(rows.apply(get_closest_animal, lmt_reader=lmt_reader, axis=1))
+                close_df.index = rows.index
+
+
+                # df[['lmt_rfid', 'lmt_db_frame', 'lmt_date']] = close_df[['lmt_rfid', 'lmt_db_frame', 'lmt_date']]
+                df.update(close_df)
+
+                print("ok")
+
+
 
         return df
+
+    # def _add_lmt_loc(self) -> pd.DataFrame:
+    #     df = self.df
+    #
+    #     # create these columns if not exists
+    #     if 'db_error' not in df:
+    #         df['db_error'] = None
+    #         df['lmt_rfid'] = None
+    #         df['lmt_db_frame'] = None
+    #         df['lmt_date'] = None
+    #
+    #     df_db = LMT2BatchLinkProcess().df
+    #     df_db = df_db[df_db.batch == self.batch_name]
+    #
+    #     def get_closest_animal(row: pd.Series, lmt_reader: LMTDBReader):
+    #
+    #         if row.action == 'id_lever':
+    #             location = self.parameters.lever_loc
+    #         elif row.action == 'nose_poke':
+    #             location = self.parameters.feeder_loc
+    #         else:
+    #             return row
+    #
+    #         try:
+    #             rfid, frame, ts = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=location, close_connection=False)
+    #             row['lmt_rfid'] = rfid
+    #             row['lmt_db_frame'] = frame
+    #             row['lmt_date'] = datetime.datetime.fromtimestamp(ts).astimezone(tz=pytz.timezone("Europe/Paris"))
+    #         except LMTDBException as e:
+    #             err_msg = f"Unable to found closest animal for event: {row['action']} date: {row['time']} cause: {e}"
+    #             self.logger.error(err_msg)
+    #             row['db_error'] = e.error_type.name
+    #
+    #         return row
+    #
+    #     df.loc[df.db_idx == -1, 'db_error'] = "NO_DB"
+    #
+    #     for id_group, rows in df.groupby("db_idx"):
+    #
+    #         if id_group == -1:
+    #             continue
+    #
+    #         db_file = df_db[df_db.db_idx == id_group].iloc[0].path
+    #         lmt_reader = LMTDBReader(Path(db_file))
+    #         df.update(rows.apply(get_closest_animal, lmt_reader=lmt_reader, axis=1))
+    #
+    #     return df
 
     def _add_db_frame_info(self):
 

@@ -50,7 +50,7 @@ class TestLMTDBReader(unittest.TestCase):
         lmt_service = container.lmt_service()
         df = ImportBatch(batch_name="XP8").df
         rfid = "001043737108"
-        df_filt = df[(df["rfid"] == rfid) & (df['action'] == "id_lever") & (df["day_since_start"] == 2)]
+        df_filt = df[(df["rfid"] == rfid) & (df['action'] == "id_lever") & (df["day_since_start"] == 4)]
 
         lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", df_filt['time'].iloc[0])
 
@@ -85,13 +85,37 @@ class TestLMTDBReader(unittest.TestCase):
 
 
 
+    def test_batch_closest_animal(self):
+        lmt_service = container.lmt_service()
+        parameters = container.parameters()
+
+        df = ImportBatch(batch_name="XP8").df
+        df[['lmt_rfid', 'lmt_date', 'lmt_db_frame', 'lmt_date']] = None
+
+        df = df[(df["action"] == "nose_poke") & (df["db_idx"] != -1)].iloc[::100, :]
+
+        groups = dict(list(df.groupby("db_idx")))
+
+        # for id_db, rows in groups.items():
+        rows = groups[1]
+        # print(id_db)
+
+        date = rows.time.iloc[0]
+        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", date)
+
+        frame_number_list = rows["db_frame"].tolist()
+
+        close_df = lmt_reader.get_closest_animal_batch(frame_numbers=frame_number_list, location=parameters.feeder_loc)
+        close_df.index = rows.index
+        df[['lmt_rfid', 'lmt_db_frame', 'lmt_date']] = close_df[['lmt_rfid', 'lmt_db_frame', 'lmt_date']]
+        print("ok")
 
     def test_import_batch(self):
 
-        df = ImportBatch(batch_name="XP8").compute()
+        df = ImportBatch(batch_name="XP8").compute(force_recompute=True)
         # p = DBEventInfo(batch_name="SAMPLE_XP6").compute()
 
-        df_rfid = df[df.lmt_rfid != df.rfid]
+        # df_rfid = df[df.lmt_rfid != df.rfid]
 
         print("ok")
 

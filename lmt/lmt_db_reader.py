@@ -113,6 +113,68 @@ class LMTDBReader:
         c.close()
         self.close()
 
+    def get_closest_animal_batch(self, frame_numbers: List[int], location: Tuple[int, int]) -> pd.DataFrame:
+
+        # due to first record without ms expected frame could be 30 frames later
+        # we are looking into this interval and stop at the first group of frame corresponding to distance criteria
+        delta_frame = 20
+
+        query_values = [str((cpt, num_frame)) for cpt, num_frame in enumerate(frame_numbers)]
+        query_val_str = ','.join(query_values)
+
+        query = f"""
+                    WITH T(id, num_frame) AS (
+        			VALUES {query_val_str})
+        			SELECT
+                        T.*, d.MASS_X, d.MASS_Y,
+                        a.RFID as lmt_rfid,
+                        f.FRAMENUMBER as lmt_db_frame, f.TIMESTAMP as lmt_date                        
+                    FROM
+                        FRAME as f, T
+                    LEFT JOIN DETECTION as d ON d.FRAMENUMBER = f.FRAMENUMBER
+                    LEFT JOIN ANIMAL as a ON a.ID = d.ANIMALID
+        			WHERE
+                            f.FRAMENUMBER BETWEEN T.num_frame AND (T.num_frame+{delta_frame})
+                """
+
+        # self.logger.debug(f"QUERY = {query}")
+
+        df = pd.read_sql_query(query, self.connexion, dtype={'lmt_rfid': str})
+
+        df['db_error'] = ''
+
+        self.connexion.close()
+
+        columns = ['db_error', 'lmt_rfid', 'lmt_db_frame', 'lmt_date']
+
+        def get_closest_frame(rows: pd.DataFrame) -> pd.Series:
+
+            res_row = pd.Series(dict.fromkeys(columns)).transpose()
+
+            rows = rows[rows["lmt_rfid"] != "None"]
+
+            if rows.empty:
+                res_row["db_error"] = "NO DETECTION"
+                return res_row
+
+            rows["distance"] = rows.apply(lambda row: math.dist((row.MASS_X, row.MASS_Y), location), axis=1)
+            rows = rows[rows.distance <= 60]
+
+            if rows.empty:
+                res_row["db_error"] = "TOO_FAR"
+                return res_row
+
+            res_row = rows.iloc[0]
+
+            return res_row[columns]
+
+        res = df.groupby('id').apply(get_closest_frame)
+
+        tz_str = pytz.timezone("Europe/Paris")
+        res['lmt_date'] = pd.to_datetime(res['lmt_date'], unit="ms", utc=True).dt.tz_convert(tz_str)
+
+        return res
+
     def get_closest_animal(self, frame_number: int, location: Tuple[int, int], close_connection: bool = True) -> Tuple[str, int, float]:
 
         connection = self.connexion
@@ -122,7 +184,7 @@ class LMTDBReader:
         # we are looking into this interval and stop at the first group of frame corresponding to distance criteria
         delta_frame = 20
 
-        # ORDER BY FRAME DISTANCE OF THE REF FRAME
+
         request = f"""SELECT d.MASS_X, d.MASS_Y, a.RFID, d.FRAMENUMBER, f.TIMESTAMP FROM
             DETECTION as d, ANIMAL as a, FRAME as f 
         WHERE 

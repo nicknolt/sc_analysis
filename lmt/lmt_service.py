@@ -30,10 +30,10 @@ class LMTService:
 
         return list(res)
 
-    def get_lmt_reader(self, batch_name: str, date: datetime) -> Tuple[LMTDBReader, int]:
+    def get_lmt_reader(self, batch_name: str, date: datetime = None, db_idx: int = None) -> Tuple[LMTDBReader, int]:
         from lmt.lmt2batch_link_process import LMT2BatchLinkProcess
 
-        df_db, batch_idx = LMT2BatchLinkProcess().get_db_path(batch_name=batch_name, date=date)
+        df_db, batch_idx = LMT2BatchLinkProcess().get_db_path(batch_name=batch_name, date=date, db_idx=db_idx)
 
         if df_db:
             return LMTDBReader(df_db), batch_idx

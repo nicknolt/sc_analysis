@@ -18,6 +18,7 @@ class DBInfo:
     path: Path
     date_start: datetime
     date_end: datetime
+    nb_frames: int
 
     @property
     def duration(self) -> float:
@@ -42,7 +43,8 @@ class LMTDBReader:
 
         self._date_start: datetime = None
         self._date_end: datetime = None
-        
+        self._nb_frames: int = 0
+
         self.db_path: Path = db_path
 
         self._connexion: sqlite3.Connection = None
@@ -56,7 +58,13 @@ class LMTDBReader:
 
     @property
     def db_info(self) -> 'DBInfo':
-        return DBInfo(self.db_path, self.date_start, self.date_end)
+        return DBInfo(self.db_path, self.date_start, self.date_end, self.nb_frames)
+
+    @property
+    def nb_frames(self) -> int:
+        if self._nb_frames is None:
+            self._fetch_date_begin_end()
+        return self._nb_frames
 
     @property
     def date_start(self):
@@ -90,27 +98,27 @@ class LMTDBReader:
 
         connection = self.connexion
         # connection = sqlite3.connect(self.db_path)
-        c = connection.cursor()
 
         tz_str = pytz.timezone("Europe/Paris")
 
-        try:
-            c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MIN(framenumber) FROM frame)')
-            row = c.fetchone()
-            self._date_start = datetime.fromtimestamp(row[0]/1000, tz=tz_str)
-        except sqlite3.DatabaseError as e:
-            err_msg = f"Unable to fetch date start from database: '{self.db_path}' cause: {e}"
-            self.logger.error(err_msg)
+        query = """
+                SELECT timestamp, framenumber 
+                FROM frame 
+                WHERE framenumber IN (SELECT MIN(framenumber) FROM frame UNION SELECT MAX(framenumber) FROM frame)"""
 
         try:
-            c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MAX(framenumber) FROM frame)')
-            row = c.fetchone()
-            self._date_end = datetime.fromtimestamp(row[0]/1000, tz=tz_str)
+            # c.execute('SELECT timestamp FROM frame WHERE framenumber = (SELECT MIN(framenumber) FROM frame)')
+            df = pd.read_sql_query(query, connection)
+            row_start = df.iloc[0]
+            row_end = df.iloc[1]
+
+            self._date_start = datetime.fromtimestamp(row_start.TIMESTAMP/1000, tz=tz_str)
+            self._date_end = datetime.fromtimestamp(row_end.TIMESTAMP/1000, tz=tz_str)
+            self._nb_frames = row_end.FRAMENUMBER + 1
         except sqlite3.DatabaseError as e:
-            err_msg = f"Unable to fetch date end from database: '{self.db_path}' cause: {e}"
+            err_msg = f"Unable to fetch informations from database: '{self.db_path}' cause: {e}"
             self.logger.error(err_msg)
 
-        c.close()
         self.close()
 
     def get_closest_animal_batch(self, frame_numbers: List[int], location: Tuple[int, int]) -> pd.DataFrame:
@@ -310,89 +318,78 @@ class LMTDBReader:
 
         return df
 
-    def get_corresponding_frame_number(self, date: datetime, close_connexion: bool = True) -> int:
+    def _get_corresponding_frame_number(self, from_ref_frame: Tuple[int, datetime], date: datetime, search_offset: int = 1000) -> Tuple[int, datetime]:
 
-        if not (self.date_start < date < self.date_end):
-            raise ValueError(f"Date {date} is out of range [{self.date_start}, {self.date_end}]")
+        delta_t = (date - from_ref_frame[1]).total_seconds()
+        expected_frame = int(delta_t * 30) + from_ref_frame[0]
 
         connection = self.connexion
-        # connection = sqlite3.connect(self.db_path)
+        # search_offset = 1000
 
-        # every 500 frames (1650 ms) LMT recording delay the next frame for 220 ms
-        delta_t = (date - self.date_start).total_seconds()
+        date_ts = date.timestamp()*1000
 
-        expected_frame = int(delta_t * 30)
-
-        search_offset = 10000
+        low_index = max(1, expected_frame - search_offset)
+        high_index = min(self.nb_frames+1, expected_frame + search_offset)
 
         query = f"""
                 SELECT 
-                    framenumber, timestamp FROM frame 
+                    framenumber, timestamp, ABS({date_ts} - timestamp) as dt FROM frame 
                 WHERE 
-                    framenumber IN ({expected_frame}, {expected_frame + search_offset})
-        """
-
-        df = pd.read_sql_query(query, connection)
-
-        ts_date = date.timestamp()
-
-        ts_a = df.iloc[0]['TIMESTAMP']/1000
-        ts_b = df.iloc[1]['TIMESTAMP']/1000
-
-        print("ok")
-
-    def get_corresponding_frame_number_ori(self, date: datetime, close_connexion: bool = True) -> int:
-
-        if not (self.date_start < date < self.date_end):
-            raise ValueError(f"Date {date} is out of range [{self.date_start}, {self.date_end}]")
-
-        connection = self.connexion
-        # connection = sqlite3.connect(self.db_path)
-
-        # every 500 frames (1650 ms) LMT recording delay the next frame for 220 ms
-        delta_t = (date - self.date_start).total_seconds()
-
-        expected_frame = int(delta_t * 30)
-
-        search_offset = 10000
-
-        # pd.Timestamp to timestamp give local tz date as a GMT date, it is a wrong behavior (tested with older pandas version always the same results ...)
-        # convert timestamp to python datetime and convert it to timestamp give the expected value
-        # from_date_ts = date.to_pydatetime().timestamp() * 1000
-        # date need to be convert in utc +0 to be compared to ts of LMT DB
-        # and converted to tz unaware
-        # date_tz_unaware = date.astimezone(tz=timezone.utc).replace(tzinfo=None)
-        # from_date_ts = date.replace(tzinfo=None).timestamp() * 1000
-        from_date_ts = date.timestamp() * 1000
-
-        if expected_frame < 0:
-            raise Exception(f"Expected frame should be positive ({expected_frame})")
-
-        query = f"""
-                SELECT 
-                    framenumber, timestamp FROM frame 
-                WHERE 
-                    framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame} ORDER BY ABS({from_date_ts} - timestamp) ASC LIMIT 1
+                    framenumber BETWEEN {low_index} AND {high_index} ORDER BY dt ASC 
                 """
 
+        # self.logger.debug(f"QUERY = {query}")
+
         df = pd.read_sql_query(query, connection)
 
+        # best results
         row = df.iloc[0]
-        ts_res = row["TIMESTAMP"] / 1000
-        res_frame = row["FRAMENUMBER"]
 
-        delta_t = abs(ts_res - date.timestamp())
+        # check if there are frame before and after
+        before = df[df.TIMESTAMP < row.TIMESTAMP]
+        after = df[df.TIMESTAMP > row.TIMESTAMP]
 
-        if delta_t > (1/30):
-            err_msg = f"Corresponding frame '{res_frame}' is not close too searched date (delta_s={delta_t})"
+        # test if best result is surrounded by the previous and the next frame
+        if not(before.empty or after.empty):
+            return row["FRAMENUMBER"], datetime.fromtimestamp(row.TIMESTAMP/1000).astimezone(tz=pytz.timezone("Europe/Paris"))
+        else:
+            ts_res = row["TIMESTAMP"] / 1000
+            res_delta_t = date.timestamp() - ts_res
+            err_msg = \
+                f"""Research interval around {expected_frame} [{low_index} -> {high_index}] don't contain the best result delta_t = {delta_t} in db: {self.db_path}
+                query = {query}
+                """
             raise Exception(err_msg)
 
-        if close_connexion:
-            self.close()
 
-        # if df.empty:
-        #     self.logger.warning(f"Frame number not found for date {date} of timestamp {from_date_ts} expected frame {expected_frame}")
-        #     return None
+    def get_corresponding_frame_number(self, date_list: List[datetime]) -> List[int]:
 
-        return row["FRAMENUMBER"]
+        frame_number = 1
+        frame_date = self.date_start
+
+        res: List[int] = list()
+
+        nb_frames = len(date_list)
+
+        for cpt, date in enumerate(date_list):
+
+            if cpt % 100 == 0:
+                self.logger.debug(f"Frame {cpt}/{nb_frames}")
+
+            try:
+                frame_number, frame_date = self._get_corresponding_frame_number(from_ref_frame=(frame_number, frame_date), date=date)
+            except Exception as e:
+
+                self.logger.error(e)
+                # unable to found the closest frame in the default range, try with increasing range
+                # it mean that something is wrong with the db indeed (lmt freeze during many seconds)
+                frame_number, frame_date = self._get_corresponding_frame_number(
+                    from_ref_frame=(frame_number, frame_date), date=date, search_offset=10000)
+
+            res.append(frame_number)
+
+        self.close()
+
+        return res
+
 

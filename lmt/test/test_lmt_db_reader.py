@@ -30,12 +30,43 @@ class TestLMTDBReader(unittest.TestCase):
         logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
 
-    # def test_tmp(self):
-    #     date_str = "2023-09-10 23:54:36+02:00"
-    #     date = datetime.fromisoformat(date_str).astimezone(tz=pytz.timezone("Europe/Paris"))
-    #
-    #
-    #     print("ok")
+    def test_tmp(self):
+        # res = DBEventInfo(batch_name="XP5").compute(force_recompute=True)
+        # print("ok")
+        df = ImportBatch(batch_name="XP5").df
+
+        df["lmt_rfid"].fillna("0", inplace=True)
+        df2 = df[df["action"].isin(['id_lever', 'nose_poke'])]
+
+        df2 = df2[df2.rfid != df2.lmt_rfid]
+
+        other_col = set(df2.columns.values) - {'rfid', 'lmt_rfid'}
+
+        df2 = df2[list({'rfid', 'lmt_rfid'}) + list(other_col)]
+
+        print("ok")
+
+    def test_get_corresponding_frame_number(self):
+        lmt_service = container.lmt_service()
+
+        df = ImportBatch(batch_name="XP5").df
+
+        groups = dict(tuple(df.groupby("db_idx")))
+
+        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP5", db_idx=0)
+
+        events = groups[0]
+        # frame_number = lmt_reader._get_corresponding_frame_number(from_ref_frame=[1, lmt_reader.date_start], date=date)
+
+        # groups = dict(df.groupby("db_idx"))
+
+        res = lmt_reader.get_corresponding_frame_number(date_list=events["time"].tolist())
+        print("ok")
+
+
+
+
+
 
     def test_tmp2(self):
         date_str = "2023-09-10 23:54:36+02:00"
@@ -43,7 +74,8 @@ class TestLMTDBReader(unittest.TestCase):
 
         lmt_service = container.lmt_service()
         lmt_reader, db_idx = lmt_service.get_lmt_reader("XP5", date)
-        frame_number = lmt_reader.get_corresponding_frame_number(date)
+        # frame_number = lmt_reader.get_corresponding_frame_number_ori(date)
+        frame_number = lmt_reader._get_corresponding_frame_number(from_ref_frame=[1, lmt_reader.date_start], date=date)
 
 
         print("ok")
@@ -138,6 +170,7 @@ class TestLMTDBReader(unittest.TestCase):
     def test_import_batch(self):
 
         # batch_name = "XP8"
+        # batch_name = "XP5"
         batch_name = "XP5"
 
         # df = ImportBatch(batch_name="XP8").compute(force_recompute=True)

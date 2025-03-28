@@ -300,52 +300,62 @@ class DBEventInfo(BatchProcess):
     def dtype(self) -> Dict:
         pass
 
-    def _add_db_frame(self, df: pd.DataFrame, lmt_service: LMTService = Provide[Container.lmt_service]) -> pd.DataFrame:
+    @inject
+    def _add_db_idx(self, df: pd.DataFrame, lmt_service: LMTService = Provide[Container.lmt_service]) -> pd.DataFrame:
 
         current_reader: LMTDBReader = None
-        current_db_idx: int = None
-        nb_elem = len(df)
+        current_db_idx = None
 
         def get_db_idx(row: pd.Series):
+            nonlocal current_reader, current_db_idx
 
-            nonlocal current_reader, current_db_idx, nb_elem
-
-            if (current_reader is None) or (not current_reader.is_date_inside(row['time'])):
-
-                if current_reader:
-                    current_reader.close()
-
-                current_reader, current_db_idx = lmt_service.get_lmt_reader(self.batch_name, row['time'])
+            if current_reader:
+                is_inside = current_reader.is_date_inside(row['time'])
+                if not is_inside:
+                    current_reader = None
 
             if current_reader is None:
-                num_frame = -1
-                current_db_idx = -1
-            else:
-                num_frame = current_reader.get_corresponding_frame_number(row['time'], close_connexion=False)
+                current_reader, current_db_idx = lmt_service.get_lmt_reader(self.batch_name, row['time'])
 
-            if row.name % 100 == 0:
-                self.logger.debug(f"{row.name}/{nb_elem}")
-
-            row["db_idx"] = current_db_idx
-            row["db_frame"] = num_frame
-
-            return row
+            return current_db_idx
 
 
-        # df[["db_idx", "db_frame"]] = None #df_event.apply(get_db_idx, axis=1)
-        res = df.apply(get_db_idx, axis=1)[["db_idx", "db_frame"]]
+        df["db_idx"] = df.apply(get_db_idx, axis=1)
 
-        return res
+        return df
+
+    def _add_db_frame(self, df: pd.DataFrame, lmt_service: LMTService = Provide[Container.lmt_service]) -> pd.DataFrame:
+
+        df["db_frame"] = None
+
+        groups = dict(tuple(df.groupby("db_idx")))
+
+        for db_idx, rows in groups.items():
+            self.logger.debug(f"db_idx {db_idx}")
+
+            lmt_reader, db_idx = lmt_service.get_lmt_reader("XP5", db_idx=db_idx)
+            res = lmt_reader.get_corresponding_frame_number(date_list=rows["time"].tolist())
+            df_res = pd.DataFrame(data=res, columns=['db_frame'])
+            df_res.index = rows.index
+
+            df.update(df_res)
+
+        return df
 
 
     def _compute(self) -> pd.DataFrame:
 
         p = ImportBatch(self.batch_name)
+        # self.logger.info("!!remove iloc!!!")
+        # df_event = p.df.iloc[::100, :]
+
         df_event = p.df
 
+
+        df_event = self._add_db_idx(df_event)
         df_event = self._add_db_frame(df_event)
 
-        return df_event
+        return df_event[["db_idx", "db_frame"]]
 
 class ImportBatch(BatchProcess):
 
@@ -443,13 +453,16 @@ class ImportBatch(BatchProcess):
         self.save()
 
         df = self._add_lmt_loc()
-        # self._add_lmt_loc()
+
 
         return df
 
     def _add_lmt_loc(self) -> pd.DataFrame:
 
-        df = self._df.iloc[::100, :]
+        # self.logger.info("!!remove iloc!!!")
+        # df = self._df.iloc[::100, :]
+
+        df = self._df
 
         df[['lmt_rfid', 'lmt_db_frame', 'lmt_date', 'db_error']] = None
 
@@ -495,58 +508,11 @@ class ImportBatch(BatchProcess):
 
         return df
 
-    # def _add_lmt_loc(self) -> pd.DataFrame:
-    #     df = self.df
-    #
-    #     # create these columns if not exists
-    #     if 'db_error' not in df:
-    #         df['db_error'] = None
-    #         df['lmt_rfid'] = None
-    #         df['lmt_db_frame'] = None
-    #         df['lmt_date'] = None
-    #
-    #     df_db = LMT2BatchLinkProcess().df
-    #     df_db = df_db[df_db.batch == self.batch_name]
-    #
-    #     def get_closest_animal(row: pd.Series, lmt_reader: LMTDBReader):
-    #
-    #         if row.action == 'id_lever':
-    #             location = self.parameters.lever_loc
-    #         elif row.action == 'nose_poke':
-    #             location = self.parameters.feeder_loc
-    #         else:
-    #             return row
-    #
-    #         try:
-    #             rfid, frame, ts = lmt_reader.get_closest_animal(frame_number=row['db_frame'], location=location, close_connection=False)
-    #             row['lmt_rfid'] = rfid
-    #             row['lmt_db_frame'] = frame
-    #             row['lmt_date'] = datetime.datetime.fromtimestamp(ts).astimezone(tz=pytz.timezone("Europe/Paris"))
-    #         except LMTDBException as e:
-    #             err_msg = f"Unable to found closest animal for event: {row['action']} date: {row['time']} cause: {e}"
-    #             self.logger.error(err_msg)
-    #             row['db_error'] = e.error_type.name
-    #
-    #         return row
-    #
-    #     df.loc[df.db_idx == -1, 'db_error'] = "NO_DB"
-    #
-    #     for id_group, rows in df.groupby("db_idx"):
-    #
-    #         if id_group == -1:
-    #             continue
-    #
-    #         db_file = df_db[df_db.db_idx == id_group].iloc[0].path
-    #         lmt_reader = LMTDBReader(Path(db_file))
-    #         df.update(rows.apply(get_closest_animal, lmt_reader=lmt_reader, axis=1))
-    #
-    #     return df
-
     def _add_db_frame_info(self):
 
         df_db = DBEventInfo(batch_name=self.batch_name).df
         self.df[["db_idx", "db_frame"]] = df_db[["db_idx", "db_frame"]]
-
+        print("ok")
 
     def _find_transitions_error(self, df: pd.DataFrame):
 
@@ -610,7 +576,7 @@ class ImportBatch(BatchProcess):
     def initialize(self):
 
         # sort by time
-        self.df['time'] = pd.to_datetime(self.df['time'], format='mixed', utc=True)
+        self.df['time'] = pd.to_datetime(self.df['time'], format='mixed', utc=True).dt.tz_convert('Europe/Paris')
 
         # mo = MiceLocation(batch=self)
         # mo.compute()
@@ -662,6 +628,7 @@ class ImportBatch(BatchProcess):
         return {
             'rfid': str,
             'error': str,
+            'lmt_rfid': str
         }
 
 

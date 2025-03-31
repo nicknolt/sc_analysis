@@ -256,16 +256,18 @@ class LMTDBReader:
 
         frame_values = dict()
         for id, date in enumerate(date_list):
-            start_frame = self.get_corresponding_frame_number(date=date, close_connexion=False)
-            end_frame = self.get_corresponding_frame_number(date=date + timedelta(seconds=duration_s),
-                                                            close_connexion=False)
+            start_frame = self.get_corresponding_frame_number(date_list=[date])[0]
+            end_frame = self.get_corresponding_frame_number(date_list=[date + timedelta(seconds=duration_s)])[0]
             frame_values[id] = {
                              "start_frame": start_frame,
                              "end_frame": end_frame
             }
-        query_values = [str((k, v["start_frame"], v["end_frame"])) for k, v in frame_values.items()]
+
+            print(f"START => {int(start_frame)}-> {int(end_frame)}")
+
+        query_values = [str((k, int(v["start_frame"]), int(v["end_frame"]))) for k, v in frame_values.items()]
         query_val_str = ','.join(query_values)
-        print("ok")
+
 
         query = f"""
             WITH T(id, frame_start, frame_end) AS (
@@ -289,34 +291,34 @@ class LMTDBReader:
 
 
 
-    def get_trajectory(self, date_start: datetime, duration_s: int, rfid: str, close_connexion: bool = True):
-
-        start_frame = self.get_corresponding_frame_number(date=date_start, close_connexion=close_connexion)
-        end_frame = self.get_corresponding_frame_number(date=date_start + timedelta(seconds=duration_s), close_connexion=close_connexion)
-
-        connection = self.connexion
-
-        query = f"""
-            SELECT 
-                d.MASS_X as X, d.MASS_Y as Y 
-            FROM 
-                DETECTION as d, ANIMAL as a
-            WHERE 
-                d.FRAMENUMBER BETWEEN {start_frame} and {end_frame} AND d.ANIMALID = a.ID AND a.RFID = '{rfid}'
-        """
-
-        self.logger.debug(f"QUERY = {query}")
-
-        df = pd.read_sql_query(query, connection)
-
-        # c.execute(
-        #     f'SELECT framenumber, timestamp FROM frame WHERE framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame} ORDER BY ABS(? - timestamp) ASC LIMIT 1',
-        #     (from_date_ts,))
-
-        if close_connexion:
-            connection.close()
-
-        return df
+    # def get_trajectory(self, date_start: datetime, duration_s: int, rfid: str, close_connexion: bool = True):
+    #
+    #     start_frame = self.get_corresponding_frame_number(date_list=[date_start])[0]
+    #     end_frame = self.get_corresponding_frame_number(date_list=[date_start + timedelta(seconds=duration_s)])[0]
+    #
+    #     connection = self.connexion
+    #
+    #     query = f"""
+    #         SELECT
+    #             d.MASS_X as X, d.MASS_Y as Y
+    #         FROM
+    #             DETECTION as d, ANIMAL as a
+    #         WHERE
+    #             d.FRAMENUMBER BETWEEN {start_frame} and {end_frame} AND d.ANIMALID = a.ID AND a.RFID = '{rfid}'
+    #     """
+    #
+    #     self.logger.debug(f"QUERY = {query}")
+    #
+    #     df = pd.read_sql_query(query, connection)
+    #
+    #     # c.execute(
+    #     #     f'SELECT framenumber, timestamp FROM frame WHERE framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame} ORDER BY ABS(? - timestamp) ASC LIMIT 1',
+    #     #     (from_date_ts,))
+    #
+    #     if close_connexion:
+    #         connection.close()
+    #
+    #     return df
 
     def _get_corresponding_frame_number(self, from_ref_frame: Tuple[int, datetime], date: datetime, search_offset: int = 1000) -> Tuple[int, datetime]:
 
@@ -341,6 +343,10 @@ class LMTDBReader:
         # self.logger.debug(f"QUERY = {query}")
 
         df = pd.read_sql_query(query, connection)
+
+        if df.empty:
+            err_msg = f"No frame returned in DB : {self.db_path} \n Query : {query}"
+            raise Exception(err_msg)
 
         # best results
         row = df.iloc[0]

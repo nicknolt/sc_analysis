@@ -62,6 +62,10 @@ class DataService:
 
         data_dir = self.result_dir / batch_name
 
+        if not data_dir.exists():
+            err_msg = f"Batch '{batch_name}' does not exist"
+            raise Exception(err_msg)
+
         csv_file = list(data_dir.glob("*.csv"))
         csv_file.sort(key=os.path.getmtime)
         file_merger = FileMerger(csv_file)

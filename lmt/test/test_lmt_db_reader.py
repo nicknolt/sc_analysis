@@ -43,24 +43,28 @@ class TestLMTDBReader(unittest.TestCase):
         other_col = set(df2.columns.values) - {'rfid', 'lmt_rfid'}
 
         df2 = df2[list({'rfid', 'lmt_rfid'}) + list(other_col)]
+        df2.to_csv("kikoo.csv")
 
         print("ok")
 
     def test_get_corresponding_frame_number(self):
         lmt_service = container.lmt_service()
 
-        df = ImportBatch(batch_name="XP5").df
+        date = datetime.fromisoformat("2024-04-02 16:47:09+02:00")
 
-        groups = dict(tuple(df.groupby("db_idx")))
+        # df = ImportBatch(batch_name="XP10F1").df
 
-        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP5", db_idx=0)
-
-        events = groups[0]
-        # frame_number = lmt_reader._get_corresponding_frame_number(from_ref_frame=[1, lmt_reader.date_start], date=date)
-
-        # groups = dict(df.groupby("db_idx"))
-
-        res = lmt_reader.get_corresponding_frame_number(date_list=events["time"].tolist())
+        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP10F1", date)
+        # groups = dict(tuple(df.groupby("db_idx")))
+        #
+        # lmt_reader, db_idx = lmt_service.get_lmt_reader("XP5", db_idx=0)
+        #
+        # events = groups[0]
+        # # frame_number = lmt_reader._get_corresponding_frame_number(from_ref_frame=[1, lmt_reader.date_start], date=date)
+        #
+        # # groups = dict(df.groupby("db_idx"))
+        #
+        res = lmt_reader.get_corresponding_frame_number(date_list=[date])
         print("ok")
 
 
@@ -105,13 +109,15 @@ class TestLMTDBReader(unittest.TestCase):
 
     def test_get_trajectories(self):
         lmt_service = container.lmt_service()
-        df = ImportBatch(batch_name="XP8").df
-        rfid = "001043737108"
+        batch_name = "XP10F1"
+
+        df = ImportBatch(batch_name=batch_name).df
+        rfid = "002026311716"
         df_filt = df[(df["rfid"] == rfid) & (df['action'] == "id_lever") & (df["day_since_start"] == 4)]
 
-        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", df_filt['time'].iloc[0])
+        lmt_reader, db_idx = lmt_service.get_lmt_reader(batch_name, df_filt['time'].iloc[0])
 
-        res = lmt_reader.get_trajectories(df_filt['time'].tolist(), duration_s=6, rfid="001043737108")
+        res = lmt_reader.get_trajectories((df_filt['time'].tolist()), duration_s=6, rfid=rfid)
 
         for gp_id, gp_rows in res.groupby("id"):
             plt.plot(gp_rows.X, gp_rows.Y)
@@ -122,9 +128,10 @@ class TestLMTDBReader(unittest.TestCase):
     def test_get_many_trajectories(self):
         lmt_service = container.lmt_service()
 
-        df = ImportBatch(batch_name="XP8").df
+        batch_name = "XP10F1"
+        df = ImportBatch(batch_name=batch_name).df
 
-        rfid = "001043737108"
+        rfid = "002026311673"
 
         df_filt = df[(df["rfid"] == rfid) & (df['action'] == "id_lever")]
 
@@ -132,9 +139,9 @@ class TestLMTDBReader(unittest.TestCase):
 
             date = row['time']
 
-            lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", date)
+            lmt_reader, db_idx = lmt_service.get_lmt_reader(batch_name, date)
 
-            res = lmt_reader.get_trajectory(date_start=date, duration_s=6, rfid="001043737108")
+            res = lmt_reader.get_trajectories(date_list=[date], duration_s=6, rfid=rfid)
 
             plt.plot(res.X, res.Y)
 
@@ -171,7 +178,7 @@ class TestLMTDBReader(unittest.TestCase):
 
         # batch_name = "XP8"
         # batch_name = "XP5"
-        batch_name = "XP5"
+        batch_name = "XP10F1"
 
         # df = ImportBatch(batch_name="XP8").compute(force_recompute=True)
         df = ImportBatch(batch_name=batch_name).compute(force_recompute=True)
@@ -233,88 +240,6 @@ class TestLMTDBReader(unittest.TestCase):
         date_from_db = datetime.fromtimestamp(ts)
 
         print("ok")
-
-    def test_tmp_add_db_event_info(self):
-        from lmt.lmt2batch_link_process import LMT2BatchLinkProcess
-
-        lmt_service = container.lmt_service()
-
-        df_event = ImportBatch("XP6").df
-
-        current_reader: LMTDBReader = None
-        current_db_idx: int = None
-        nb_elem = len(df_event)
-
-        def get_db_idx(row: pd.Series):
-
-            nonlocal current_reader, current_db_idx
-
-            if (current_reader is None) or (not current_reader.is_date_inside(row['time'])):
-
-                if current_reader:
-                    current_reader.close()
-
-                current_reader, current_db_idx = lmt_service.get_lmt_reader("XP6", row['time'])
-
-            if current_reader is None:
-                num_frame = -1
-                current_db_idx = -1
-            else:
-                num_frame = current_reader.get_corresponding_frame_number(row['time'], close_connexion=False)
-            # print(f"{row.name}/{nb_elem}")
-            row["db_idx"] = current_db_idx
-            row["db_frame"] = num_frame
-
-            return row
-
-
-        df_event[["db_idx", "db_frame"]] = None #df_event.apply(get_db_idx, axis=1)
-        df_event = df_event.apply(get_db_idx, axis=1)
-
-        df_event.to_csv("./tutu.csv")
-
-        print("ok")
-
-    def test_tmp_groupy_etc(self):
-        df = ImportBatch("XP8").df
-
-        df_event = df[df.action == 'nose_poke']
-        df['extra_field'] = df_event.apply(lambda row: "NP", axis=1)
-        df_event = df[df.action == 'id_lever']
-        df['extra_field'] = df_event.apply(lambda row: "LP", axis=1)
-        print("ok")
-
-    def test_get_db_path(self):
-        from lmt.lmt2batch_link_process import LMT2BatchLinkProcess
-
-        p = LMT2BatchLinkProcess()
-
-        date_str = "2024-01-16 08:04:34.499000+01:00"
-        date = datetime.fromisoformat(date_str)
-
-        res = p.get_db_path(batch_name="XP8", date=date)
-
-        print("ok")
-
-    def test_extract_db_event_infos(self):
-
-        p = ExtractDBEventInfo(batch_name="XP6")
-        df = p.df
-
-        print("ok")
-
-
-
-
-    def test_something(self):
-        db_file = Path(r"\\192.168.25.177\SourisCity\SourisCity_2\Experience6mice3LMT_0_2\2023_04_12\2023_04_12.sqlite")
-        reader = LMTDBReader(db_file)
-
-        begin = reader.date_start
-        end = reader.date_end
-
-        res = reader.get_corresponding_frame_number(date=datetime(year=2023, month=4, day=12, hour=10))
-        print("kikoo")
 
     def test_get_db_infos(self):
         lmt_service = container.lmt_service()

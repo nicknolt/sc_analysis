@@ -333,7 +333,7 @@ class DBEventInfo(BatchProcess):
         for db_idx, rows in groups.items():
             self.logger.debug(f"db_idx {db_idx}")
 
-            lmt_reader, db_idx = lmt_service.get_lmt_reader("XP5", db_idx=db_idx)
+            lmt_reader, db_idx = lmt_service.get_lmt_reader(batch_name=self.batch_name, db_idx=db_idx)
             res = lmt_reader.get_corresponding_frame_number(date_list=rows["time"].tolist())
             df_res = pd.DataFrame(data=res, columns=['db_frame'])
             df_res.index = rows.index
@@ -454,12 +454,11 @@ class ImportBatch(BatchProcess):
 
         df = self._add_lmt_loc()
 
-
         return df
 
     def _add_lmt_loc(self) -> pd.DataFrame:
 
-        # self.logger.info("!!remove iloc!!!")
+        # self.logger.error("!!remove iloc!!!")
         # df = self._df.iloc[::100, :]
 
         df = self._df

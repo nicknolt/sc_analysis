@@ -8,6 +8,7 @@ from dependency_injector.wiring import Provide, inject
 from container import Container
 from data_service import DataService, BatchInfo
 from lmt.lmt_service import LMTService
+from lmt.lmt_video_service import LMTVideoService
 from process import GlobalProcess
 
 def has_overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
@@ -18,18 +19,18 @@ def has_overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end: da
 
     return latest_start <= earliest_end
 
-class LMT2BatchLinkProcess(GlobalProcess):
+class Video2BatchLinkProcess(GlobalProcess):
 
     @inject
-    def __init__(self, data_service: DataService = Provide[Container.data_service], lmt_service: LMTService = Provide[Container.lmt_service]):
+    def __init__(self, data_service: DataService = Provide[Container.data_service], video_service: LMTVideoService = Provide[Container.lmt_service]):
         super().__init__()
 
         self.data_service = data_service
-        self.lmt_service = lmt_service
+        self.video_service = video_service
 
     @property
     def result_id(self) -> str:
-        return 'lmt2batch'
+        return 'video2batch'
 
     @property
     def dtype(self) -> Dict:
@@ -38,7 +39,7 @@ class LMT2BatchLinkProcess(GlobalProcess):
     def _compute(self) -> pd.DataFrame:
 
         batch_list: List[BatchInfo] = self.data_service.get_batches()
-        db_list = self.lmt_service.get_db_infos()
+        db_list = self.video_service.get_video_info()
 
         res_dict: List[Dict] = []
 

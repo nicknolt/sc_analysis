@@ -1,16 +1,16 @@
 import math
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Tuple, List
+from typing import Tuple, List
 
-import numpy as np
-import pytz
 import pandas as pd
-from common_log import create_logger
+import pandas.errors
+import pytz
 
+from common_log import create_logger
 
 
 @dataclass
@@ -115,13 +115,14 @@ class LMTDBReader:
             self._date_start = datetime.fromtimestamp(row_start.TIMESTAMP/1000, tz=tz_str)
             self._date_end = datetime.fromtimestamp(row_end.TIMESTAMP/1000, tz=tz_str)
             self._nb_frames = row_end.FRAMENUMBER + 1
-        except sqlite3.DatabaseError as e:
+        except (sqlite3.DatabaseError, pandas.errors.DatabaseError) as e:
             err_msg = f"Unable to fetch informations from database: '{self.db_path}' cause: {e}"
             self.logger.error(err_msg)
+            # raise e
 
         self.close()
 
-    def get_closest_animal_batch(self, frame_numbers: List[int], location: Tuple[int, int]) -> pd.DataFrame:
+    def get_closest_animal(self, frame_numbers: List[int], location: Tuple[int, int]) -> pd.DataFrame:
 
         # due to first record without ms expected frame could be 30 frames later
         # we are looking into this interval and stop at the first group of frame corresponding to distance criteria
@@ -186,72 +187,6 @@ class LMTDBReader:
 
         return res
 
-    def get_closest_animal(self, frame_number: int, location: Tuple[int, int], close_connection: bool = True) -> Tuple[str, int, float]:
-
-        connection = self.connexion
-        c = connection.cursor()
-
-        # due to first record without ms expected frame could be 30 frames later
-        # we are looking into this interval and stop at the first group of frame corresponding to distance criteria
-        delta_frame = 20
-
-
-        request = f"""SELECT d.MASS_X, d.MASS_Y, a.RFID, d.FRAMENUMBER, f.TIMESTAMP FROM
-            DETECTION as d, ANIMAL as a, FRAME as f 
-        WHERE 
-            d.FRAMENUMBER BETWEEN {frame_number} AND {frame_number + delta_frame}
-        AND f.FRAMENUMBER = d.FRAMENUMBER
-        AND a.ID = d.ANIMALID"""
-
-        self.logger.debug(f"QUERY = {request}")
-        # request = f"""SELECT d.MASS_X, d.MASS_Y, a.RFID, d.FRAMENUMBER, ABS({frame_number}-d.FRAMENUMBER) as distance FROM
-        #     DETECTION as d, ANIMAL as a
-        # WHERE
-        #     d.FRAMENUMBER BETWEEN {frame_number - delta_frame} AND {frame_number + delta_frame}
-        #     AND a.ID = d.ANIMALID
-        #     ORDER BY distance"""
-
-        c.execute(request)
-
-        min_dist: float = None
-        min_rfid: str = None
-        min_frame: int = None
-        min_ts: float = None
-
-        df = pd.read_sql_query(request, connection)
-        gb = df.groupby('FRAMENUMBER')
-
-        # iterate each group ordered by time precision from the reference num frame
-        for distance, group in gb:
-            for idx, row in group.iterrows():
-                dist = math.dist((row.iloc[0], row.iloc[1]), location)
-
-                if min_dist is None or dist < min_dist:
-                    min_dist = dist
-                    min_rfid = row.iloc[2]
-                    min_frame = int(row.iloc[3])
-                    min_ts = float(row.iloc[4])/1000
-
-            # stop if a min < 60 has been found
-            if min_dist <= 60:
-                break
-
-        if min_dist is None:
-            err_msg = f"No detection at frame {frame_number}"
-            raise LMTDBException(err_msg, LMTDBException.ExceptionType.NO_DETECTION)
-
-        if min_dist > 60:
-            err_msg = f"Min dist is {min_dist:.2f} for rfid '{min_rfid}' but is too far to be considered as pertinent"
-            raise LMTDBException(err_msg, LMTDBException.ExceptionType.TOO_FAR)
-
-            # self.logger.warning(f"Date: {datetime.fromtimestamp(ts)} Min dist is {min_dist} for rfid '{min_rfid}' but is too far to be considered as pertinent")
-            # return None
-
-        if close_connection:
-            connection.close()
-
-        return min_rfid, min_frame, min_ts
-
     def get_trajectories(self, date_list: List[datetime], duration_s: int, rfid: str):
 
         frame_values = dict()
@@ -290,43 +225,12 @@ class LMTDBReader:
         return df
 
 
-
-    # def get_trajectory(self, date_start: datetime, duration_s: int, rfid: str, close_connexion: bool = True):
-    #
-    #     start_frame = self.get_corresponding_frame_number(date_list=[date_start])[0]
-    #     end_frame = self.get_corresponding_frame_number(date_list=[date_start + timedelta(seconds=duration_s)])[0]
-    #
-    #     connection = self.connexion
-    #
-    #     query = f"""
-    #         SELECT
-    #             d.MASS_X as X, d.MASS_Y as Y
-    #         FROM
-    #             DETECTION as d, ANIMAL as a
-    #         WHERE
-    #             d.FRAMENUMBER BETWEEN {start_frame} and {end_frame} AND d.ANIMALID = a.ID AND a.RFID = '{rfid}'
-    #     """
-    #
-    #     self.logger.debug(f"QUERY = {query}")
-    #
-    #     df = pd.read_sql_query(query, connection)
-    #
-    #     # c.execute(
-    #     #     f'SELECT framenumber, timestamp FROM frame WHERE framenumber BETWEEN {expected_frame - search_offset} AND {expected_frame} ORDER BY ABS(? - timestamp) ASC LIMIT 1',
-    #     #     (from_date_ts,))
-    #
-    #     if close_connexion:
-    #         connection.close()
-    #
-    #     return df
-
     def _get_corresponding_frame_number(self, from_ref_frame: Tuple[int, datetime], date: datetime, search_offset: int = 1000) -> Tuple[int, datetime]:
 
         delta_t = (date - from_ref_frame[1]).total_seconds()
         expected_frame = int(delta_t * 30) + from_ref_frame[0]
 
         connection = self.connexion
-        # search_offset = 1000
 
         date_ts = date.timestamp()*1000
 
@@ -340,13 +244,7 @@ class LMTDBReader:
                     framenumber BETWEEN {low_index} AND {high_index} ORDER BY dt ASC 
                 """
 
-        # self.logger.debug(f"QUERY = {query}")
-
         df = pd.read_sql_query(query, connection)
-
-        if df.empty:
-            err_msg = f"No frame returned in DB : {self.db_path} \n Query : {query}"
-            raise Exception(err_msg)
 
         # best results
         row = df.iloc[0]
@@ -358,14 +256,15 @@ class LMTDBReader:
         # test if best result is surrounded by the previous and the next frame
         if not(before.empty or after.empty):
             return row["FRAMENUMBER"], datetime.fromtimestamp(row.TIMESTAMP/1000).astimezone(tz=pytz.timezone("Europe/Paris"))
+
         else:
-            ts_res = row["TIMESTAMP"] / 1000
-            res_delta_t = date.timestamp() - ts_res
             err_msg = \
                 f"""Research interval around {expected_frame} [{low_index} -> {high_index}] don't contain the best result delta_t = {delta_t} in db: {self.db_path}
                 query = {query}
                 """
-            raise Exception(err_msg)
+            self.logger.debug(err_msg)
+
+            return None, None
 
 
     def get_corresponding_frame_number(self, date_list: List[datetime]) -> List[int]:
@@ -382,15 +281,16 @@ class LMTDBReader:
             if cpt % 100 == 0:
                 self.logger.debug(f"Frame {cpt}/{nb_frames}")
 
-            try:
-                frame_number, frame_date = self._get_corresponding_frame_number(from_ref_frame=(frame_number, frame_date), date=date)
-            except Exception as e:
+            search_offset = 100
 
-                self.logger.error(e)
-                # unable to found the closest frame in the default range, try with increasing range
-                # it mean that something is wrong with the db indeed (lmt freeze during many seconds)
-                frame_number, frame_date = self._get_corresponding_frame_number(
-                    from_ref_frame=(frame_number, frame_date), date=date, search_offset=10000)
+            while True:
+                res_number, res_date = self._get_corresponding_frame_number(from_ref_frame=(frame_number, frame_date), date=date, search_offset=search_offset)
+                if res_number is None:
+                    search_offset *= 10
+                else:
+                    frame_number = res_number
+                    frame_date = res_date
+                    break
 
             res.append(frame_number)
 

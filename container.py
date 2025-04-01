@@ -5,6 +5,7 @@ from dependency_injector import providers, containers
 from cache_repository import CacheRepository
 from data_service import DataService
 from lmt.lmt_service import LMTService
+from lmt.lmt_video_service import LMTVideoService
 from parameters import Parameters
 
 
@@ -16,9 +17,11 @@ class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
         modules=[
             "process",
-            "batch_process",
             "lmt.lmt2batch_link_process"
         ],
+        packages=[
+            "batch_process"
+        ]
     )
 
 
@@ -36,6 +39,11 @@ class Container(containers.DeclarativeContainer):
     lmt_service = providers.Singleton(
         LMTService,
         lmt_dir=config.general.lmt_dir.required()
+    )
+
+    video_service = providers.Singleton(
+        LMTVideoService,
+        video_dir=config.general.video_dir.required()
     )
 
     parameters = providers.Singleton(

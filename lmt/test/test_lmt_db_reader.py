@@ -2,21 +2,20 @@ import logging
 import os
 import subprocess
 import unittest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from io import StringIO
 from pathlib import Path
 
+import matplotlib
+import matplotlib.pyplot as plt
 import pytz
 
-from batch_process import ImportBatch, DBEventInfo
+from batch_process.import_batch import ImportBatch
 from common import ROOT_DIR
 from common_log import basic_config_log
 from container import Container
-from lmt.lmt_db_reader import LMTDBReader, DBInfo
-from lmt.lmt_service import LMTService
-import pandas as pd
-import matplotlib
-import matplotlib.pyplot as plt
+from lmt.lmt_db_reader import DBInfo
+
 matplotlib.use('Qt5Agg')
 
 container = Container()
@@ -29,6 +28,14 @@ class TestLMTDBReader(unittest.TestCase):
         basic_config_log(level=logging.DEBUG)
         logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
+    
+    def test_process_all(self):
+        date_service = container.data_service()
+
+        for batch in date_service.get_batches():
+            df = ImportBatch(batch_name=batch.name).df
+
+        print("ok")
 
     def test_tmp(self):
         # res = DBEventInfo(batch_name="XP5").compute(force_recompute=True)
@@ -46,6 +53,7 @@ class TestLMTDBReader(unittest.TestCase):
         df2.to_csv("kikoo.csv")
 
         print("ok")
+
 
     def test_get_corresponding_frame_number(self):
         lmt_service = container.lmt_service()
@@ -67,6 +75,30 @@ class TestLMTDBReader(unittest.TestCase):
         res = lmt_reader.get_corresponding_frame_number(date_list=[date])
         print("ok")
 
+
+    def test_get_corresponding_frame_number(self):
+        lmt_service = container.lmt_service()
+
+        date = datetime.fromisoformat("2024-04-02 16:47:09+02:00")
+
+        df = ImportBatch(batch_name="XP10F1").df
+
+        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP10F1", date)
+        groups = dict(tuple(df.groupby("db_idx")))
+        #
+        # lmt_reader, db_idx = lmt_service.get_lmt_reader("XP5", db_idx=0)
+        #
+        # events = groups[0]
+        # # frame_number = lmt_reader._get_corresponding_frame_number(from_ref_frame=[1, lmt_reader.date_start], date=date)
+        #
+        # # groups = dict(df.groupby("db_idx"))
+        rows = groups[db_idx].iloc[::200, :]
+
+        # res_1 = lmt_reader.get_corresponding_frame_number(date_list=rows["time"].tolist())
+
+        # 156 events => 5m25 avec methode robin VS 1.7s avec ma methode
+        res_2 = lmt_reader.get_corresponding_frame_number(date_list=rows["time"].tolist())
+        print("ok")
 
 
 
@@ -120,7 +152,8 @@ class TestLMTDBReader(unittest.TestCase):
         res = lmt_reader.get_trajectories((df_filt['time'].tolist()), duration_s=6, rfid=rfid)
 
         for gp_id, gp_rows in res.groupby("id"):
-            plt.plot(gp_rows.X, gp_rows.Y)
+            plt.plot(gp_rows.X, gp_rows.Y, c="r", linewidth=0.5)
+            # plt.plot(gp_rows.X, gp_rows.Y)
 
         plt.show()
         print("kikoo")
@@ -143,11 +176,39 @@ class TestLMTDBReader(unittest.TestCase):
 
             res = lmt_reader.get_trajectories(date_list=[date], duration_s=6, rfid=rfid)
 
-            plt.plot(res.X, res.Y)
+            plt.plot(res.X, res.Y, c="r", linewidth=0.5)
+
+            # plt.plot(res.X, res.Y)
 
         plt.show()
 
 
+
+    def test_batch_closest_animal_by_date(self):
+        lmt_service = container.lmt_service()
+        parameters = container.parameters()
+
+        df = ImportBatch(batch_name="XP8").df
+        df[['lmt_rfid', 'lmt_date', 'lmt_db_frame', 'lmt_date']] = None
+
+        df = df[(df["action"] == "nose_poke") & (df["db_idx"] != -1)].iloc[::100, :]
+
+        groups = dict(list(df.groupby("db_idx")))
+
+        # for id_db, rows in groups.items():
+        rows = groups[1]
+        # print(id_db)
+
+        date = rows.time.iloc[0]
+        lmt_reader, db_idx = lmt_service.get_lmt_reader("XP8", date)
+
+        # frame_number_list = rows["db_frame"].tolist()
+        frame_date_list = rows["time"].tolist()
+
+        close_df = lmt_reader.get_closest_animal_batch_time(frame_date=frame_date_list, location=parameters.feeder_loc)
+        close_df.index = rows.index
+        df[['lmt_rfid', 'lmt_db_frame', 'lmt_date']] = close_df[['lmt_rfid', 'lmt_db_frame', 'lmt_date']]
+        print("ok")
 
     def test_batch_closest_animal(self):
         lmt_service = container.lmt_service()
@@ -169,7 +230,7 @@ class TestLMTDBReader(unittest.TestCase):
 
         frame_number_list = rows["db_frame"].tolist()
 
-        close_df = lmt_reader.get_closest_animal_batch(frame_numbers=frame_number_list, location=parameters.feeder_loc)
+        close_df = lmt_reader.get_closest_animal(frame_numbers=frame_number_list, location=parameters.feeder_loc)
         close_df.index = rows.index
         df[['lmt_rfid', 'lmt_db_frame', 'lmt_date']] = close_df[['lmt_rfid', 'lmt_db_frame', 'lmt_date']]
         print("ok")
@@ -178,7 +239,7 @@ class TestLMTDBReader(unittest.TestCase):
 
         # batch_name = "XP8"
         # batch_name = "XP5"
-        batch_name = "XP10F1"
+        batch_name = "XP11F2"
 
         # df = ImportBatch(batch_name="XP8").compute(force_recompute=True)
         df = ImportBatch(batch_name=batch_name).compute(force_recompute=True)

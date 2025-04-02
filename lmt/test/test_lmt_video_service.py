@@ -14,6 +14,7 @@ from common_log import basic_config_log
 from container import Container
 from lmt.lmt_db_reader import DBInfo
 from lmt.lmt_video_service import LMTVideoService, VideoInfo
+from lmt.video2batch_link_process import Video2BatchLinkProcess
 
 container = Container()
 container.config.from_ini(ROOT_DIR / "tests/resources/config.ini")
@@ -23,6 +24,11 @@ class TestLMTVideoService(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         basic_config_log(level=logging.DEBUG)
+
+    def test_video_batch2link(self):
+        res = Video2BatchLinkProcess().df
+
+        print("ok")
 
     def test_VideoInfos(self):
         path = Path(r"\\192.168.25.175\souriscity\SourisCity2.0\LMT_DATA\Experience6mice3LMT\2023_03_21\video_t1116007.mp4")

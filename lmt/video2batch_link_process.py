@@ -8,7 +8,7 @@ from dependency_injector.wiring import Provide, inject
 from container import Container
 from data_service import DataService, BatchInfo
 from lmt.lmt_service import LMTService
-from lmt.lmt_video_service import LMTVideoService
+from lmt.lmt_video_service import LMTVideoService, VideoInfo
 from process import GlobalProcess
 
 def has_overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
@@ -22,7 +22,7 @@ def has_overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end: da
 class Video2BatchLinkProcess(GlobalProcess):
 
     @inject
-    def __init__(self, data_service: DataService = Provide[Container.data_service], video_service: LMTVideoService = Provide[Container.lmt_service]):
+    def __init__(self, data_service: DataService = Provide[Container.data_service], video_service: LMTVideoService = Provide[Container.video_service]):
         super().__init__()
 
         self.data_service = data_service
@@ -39,20 +39,20 @@ class Video2BatchLinkProcess(GlobalProcess):
     def _compute(self) -> pd.DataFrame:
 
         batch_list: List[BatchInfo] = self.data_service.get_batches()
-        db_list = self.video_service.get_video_info()
+        video_list: List[VideoInfo] = self.video_service.get_videos_info()
 
         res_dict: List[Dict] = []
 
-        for db in db_list:
+        for video in video_list:
 
-            # res: List[BatchInfo] = list(filter(lambda batchinfo: (batchinfo.date_start <= db.date_start <= batchinfo.date_end) or (batchinfo.date_start <= db.date_end <= batchinfo.date_end), batch_list))
-            res: List[BatchInfo] = list(filter(lambda batchinfo: has_overlap(batchinfo.date_start, batchinfo.date_end, db.date_start, db.date_end), batch_list))
-
-
-            dict_entry = {'path': db.path, 'date_start': db.date_start, 'date_end': db.date_end, 'nb_frames': db.nb_frames, 'duration': db.duration, 'batch': ''}
+            # # res: List[BatchInfo] = list(filter(lambda batchinfo: (batchinfo.date_start <= db.date_start <= batchinfo.date_end) or (batchinfo.date_start <= db.date_end <= batchinfo.date_end), batch_list))
+            res: List[VideoInfo] = list(filter(lambda batchinfo: has_overlap(batchinfo.date_start, batchinfo.date_end, video.date_start, video.date_end), batch_list))
+            #
+            #
+            dict_entry = {'path': video.path, 'date_start': video.date_start, 'date_end': video.date_end, 'duration': video.duration, 'batch': ''}
 
             if len(res) == 1:
-                self.logger.info(f"{db.path.name} is linked with batch: {res[0].name}")
+                self.logger.info(f"{video.path.name} is linked with batch: {res[0].name}")
                 dict_entry['batch'] = res[0].name
             elif len(res) > 1:
                 raise Exception(f"link to more than one batch ({len(res)})")
@@ -63,7 +63,7 @@ class Video2BatchLinkProcess(GlobalProcess):
         df.sort_values(by='date_start', inplace=True)
 
         # add position inside batch group (to keep the same reference values into the events df)
-        df["db_idx"] = df.groupby('batch').cumcount()
+        df["video_idx"] = df.groupby('batch').cumcount()
 
         return df
 

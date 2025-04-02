@@ -169,10 +169,10 @@ class ImportBatch(BatchProcess):
 
         MiceLocation(batch_name=self.batch_name).compute(force_recompute=True)
 
-        self._add_db_frame_info()
-        self.save()
-
-        df = self._add_lmt_loc()
+        # self._add_db_frame_info()
+        # self.save()
+        #
+        # df = self._add_lmt_loc()
 
         return df
 

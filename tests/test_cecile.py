@@ -2,12 +2,12 @@ import unittest
 from pathlib import Path
 from typing import List
 
+from batch_process.batch_process import MiceSequence
+from batch_process.import_batch import ImportBatch
 from common import ROOT_DIR
 from common_log import basic_config_log
 from container import Container
-from batch_process import ImportBatch, OccupationTime
 
-import pandas as pd
 
 from pre_analysis.pre_analysis import Action, MiceWeight
 
@@ -21,45 +21,30 @@ class TestCecile(unittest.TestCase):
     def setUpClass(cls):
         basic_config_log()
 
+    def test_tambouille(self):
+        path_str = "/Volumes/souriscity/SourisCity2.0/Sniffer local"
+        path = Path(path_str).exists()
+        print(path)
+
+    def test_batch_for_all(self):
+
+        batches = container.data_service().get_batches()
+
+        for batch in batches:
+            print(f"batch {batch.name}")
+            MiceSequence(batch_name=batch.name).df
+            # ImportBatch.load(batch_name=batch.name)
+
     def test_MiceWeight(self):
-        batch = ImportBatch.load(batch_name="XP11")
+        batch = ImportBatch.load(batch_name="XP13F3")
 
-        mice_weight = MiceWeight(batch)
-        mice_weight.compute()
+        # mice_weight = MiceWeight(batch_name="XP11")
+        # mice_weight.compute()
 
-        mice_weight.export_figure()
+        # mice_weight.export_figure()
 
         print("OK")
 
-    def test_load_experiment(self):
-        config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'))
-        xp = ImportBatch.load(batch_name="XP11F2T")
-    def test_occupation_time_each_mouse(self):
-        config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'))
-        xp = ImportBatch.load(batch_name="XP11")
-        xp.get_mice_occupation("T_MAZE").compute()
-        tutu = OccupationTime(xp)
 
 
-        df = tutu.df
-
-    def test_one_sequence(self):
-        import pre_analysis
-        config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'))
-
-        res=pre_analysis.one_step_sequence("XP11F2T", Action.LEVER_PRESS)
-        df = res.df
-
-        print("ok")
-
-        #config = Configuration(base_dir=Path('/Users/macminicv/Documents/Data_SC/'), result_dir='/Users/macminicv/Documents/Data_SC/Results')
-    # def test_MiceOccupation(self):
-    #     config = Configuration(base_dir=Path('./resources'))
-    #
-    #     print("ok")
-    #     # self.assertEqual(Path('./resources'), config.get_base_dir())
-    #     #
-    #     # config2 = Configuration()
-    #     #
-    #     # self.assertIs(config, config2)
 

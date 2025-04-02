@@ -4,8 +4,9 @@ import pandas as pd
 
 from process import BatchProcess
 
+
 if TYPE_CHECKING:
-    from batch_process.import_batch import ImportBatch, MiceLocation
+    from batch_process.import_batch import MiceLocation, ImportBatch
 
 
 # class GlobalPercentageLeverPressed(BatchProcess):
@@ -214,11 +215,6 @@ class MiceOccupation(BatchProcess):
 
 class MiceSequence(BatchProcess):
 
-    def __init__(self, batch: 'ImportBatch'):
-        super().__init__()
-
-        self.batch = batch
-
     @property
     def result_id(self) -> str:
 
@@ -228,6 +224,8 @@ class MiceSequence(BatchProcess):
 
     def _compute(self) -> pd.DataFrame:
 
+        from batch_process.import_batch import ImportBatch
+
         res_global: List = list()
 
         max_delay = self.parameters.max_sequence_duration
@@ -235,11 +233,12 @@ class MiceSequence(BatchProcess):
         res_sequence: Dict = None
 
         # all events
-        df = self.batch.df
+        import_p = ImportBatch(batch_name=self.batch_name)
+        df = import_p.df
         df = df[df['action'].str.contains('id_lever|nose_poke')]
 
         # mice location
-        mice_loc = self.batch.mice_location
+        mice_loc = import_p.mice_location
 
         for row in df.itertuples():
 
@@ -275,9 +274,7 @@ class MiceSequence(BatchProcess):
 
         return res_df
 
-    @property
-    def batch_name(self) -> str:
-        return self.batch.batch_name
+
 
     @property
     def dtype(self) -> Dict:

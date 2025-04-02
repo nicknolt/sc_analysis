@@ -4,7 +4,7 @@ from typing import List, Dict
 
 import pandas as pd
 
-from batch_process import ImportBatch
+from batch_process.import_batch import ImportBatch
 from process import Process, RFigure, BatchProcess
 import numpy as np
 

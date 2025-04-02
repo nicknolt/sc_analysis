@@ -12,6 +12,8 @@ from process import GlobalProcess
 
 def has_overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
 
+    if b_start is None or b_end is None:
+        return False
 
     latest_start = max(a_start, b_start)
     earliest_end = min(a_end, b_end)

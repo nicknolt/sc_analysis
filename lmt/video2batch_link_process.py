@@ -7,17 +7,11 @@ from dependency_injector.wiring import Provide, inject
 
 from container import Container
 from data_service import DataService, BatchInfo
+from lmt.lmt2batch_link_process import has_overlap
 from lmt.lmt_service import LMTService
 from lmt.lmt_video_service import LMTVideoService, VideoInfo
 from process import GlobalProcess
 
-def has_overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
-
-
-    latest_start = max(a_start, b_start)
-    earliest_end = min(a_end, b_end)
-
-    return latest_start <= earliest_end
 
 class Video2BatchLinkProcess(GlobalProcess):
 
@@ -46,7 +40,7 @@ class Video2BatchLinkProcess(GlobalProcess):
         for video in video_list:
 
             # # res: List[BatchInfo] = list(filter(lambda batchinfo: (batchinfo.date_start <= db.date_start <= batchinfo.date_end) or (batchinfo.date_start <= db.date_end <= batchinfo.date_end), batch_list))
-            res: List[VideoInfo] = list(filter(lambda batchinfo: has_overlap(batchinfo.date_start, batchinfo.date_end, video.date_start, video.date_end), batch_list))
+            res: List[BatchInfo] = list(filter(lambda batchinfo: has_overlap(batchinfo.date_start, batchinfo.date_end, video.date_start, video.date_end), batch_list))
             #
             #
             dict_entry = {'path': video.path, 'date_start': video.date_start, 'date_end': video.date_end, 'duration': video.duration, 'batch': ''}
@@ -55,7 +49,8 @@ class Video2BatchLinkProcess(GlobalProcess):
                 self.logger.info(f"{video.path.name} is linked with batch: {res[0].name}")
                 dict_entry['batch'] = res[0].name
             elif len(res) > 1:
-                raise Exception(f"link to more than one batch ({len(res)})")
+                err_msg = f"video {video.path} is linked to many batches : {','.join(map(lambda batchinfo: batchinfo.name, res))}"
+                raise Exception(err_msg)
 
             res_dict.append(dict_entry)
 

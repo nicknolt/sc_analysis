@@ -59,10 +59,8 @@ class LMTVideoService:
 
         self.logger.info(f"Getting Videos infos in directory '{self.video_dir}'")
 
-        res = map(lambda video_path: VideoInfo(video_path), self._get_all_video_files())
+        res = map(lambda video_path: VideoInfo(video_path), self._get_all_video_files()[::100])
 
         return list(res)
-        # res = map(lambda db_path: LMTDBReader(db_path).db_info, self._get_all_db_files())
-        #
-        # return list(res)
+
 

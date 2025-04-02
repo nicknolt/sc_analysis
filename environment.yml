@@ -1,0 +1,12 @@
+name: SC_Analysis
+channels:
+  - defaults
+dependencies:
+  - python=3.9.*
+  - pip
+  - matplotlib=3.9.*
+  - pytz=2024.*
+  - pandas=2.2.*
+  - pip:
+      - dependency-injector==4.*
+      - opencv-python==4.*

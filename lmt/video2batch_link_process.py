@@ -1,8 +1,10 @@
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import pandas as pd
+import pytz
 from dependency_injector.wiring import Provide, inject
 
 from container import Container
@@ -30,12 +32,11 @@ class Video2BatchLinkProcess(GlobalProcess):
     def dtype(self) -> Dict:
         pass
 
-    def _compute(self) -> pd.DataFrame:
-
-        batch_list: List[BatchInfo] = self.data_service.get_batches()
-        video_list: List[VideoInfo] = self.video_service.get_videos_info()
+    def _link_by_setup(self, setup_id: str, batch_list: List[BatchInfo]) -> pd.DataFrame:
 
         res_dict: List[Dict] = []
+
+        video_list = self.video_service.get_videos_info(setup_id)
 
         for video in video_list:
 
@@ -62,6 +63,23 @@ class Video2BatchLinkProcess(GlobalProcess):
 
         return df
 
+    def _compute(self) -> pd.DataFrame:
+
+        batch_list: List[BatchInfo] = self.data_service.get_batches()
+
+        d = defaultdict(list)
+        [d[batch.setup_id].append(batch) for batch in batch_list]
+
+        res_list = []
+
+        for setup_id, batch_list in d.items():
+            res_list.append(self._link_by_setup(setup_id, batch_list))
+
+        res = pd.concat(res_list)
+
+        return res
+
+
     def get_db_path(self, batch_name: str, date: datetime = None, db_idx: int = None) -> Tuple[Path, int]:
 
         df = self.df
@@ -81,6 +99,6 @@ class Video2BatchLinkProcess(GlobalProcess):
 
 
     def initialize(self):
-        self.df['date_start'] = pd.to_datetime(self.df['date_start'], format='mixed', utc=True)
-        self.df['date_end'] = pd.to_datetime(self.df['date_end'], format='mixed', utc=True)
+        self.df['date_start'] = pd.to_datetime(self.df['date_start'], format='mixed', utc=True).dt.tz_convert('Europe/Paris')
+        self.df['date_end'] = pd.to_datetime(self.df['date_end'], format='mixed', utc=True).dt.tz_convert('Europe/Paris')
 

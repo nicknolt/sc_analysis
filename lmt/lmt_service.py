@@ -14,19 +14,19 @@ class LMTService:
         self.logger = create_logger(self)
         self.lmt_dir = Path(lmt_dir)
 
-    def _get_all_db_files(self) -> List[Path]:
+    def _get_all_db_files(self, setup_id: str) -> List[Path]:
 
-        res = list(self.lmt_dir.glob('**/*.sqlite'))
+        res = list(self.lmt_dir.glob(f'{setup_id}/**/*.sqlite'))
 
         self.logger.info(f"{len(res)} sqlite files found")
 
         return res
 
-    def get_db_infos(self) -> List['DBInfo']:
+    def get_db_infos(self, setup_id: str) -> List['DBInfo']:
 
         self.logger.info(f"Getting DB infos in directory '{self.lmt_dir}'")
 
-        res = map(lambda db_path: LMTDBReader(db_path).db_info, self._get_all_db_files())
+        res = map(lambda db_path: LMTDBReader(db_path).db_info, self._get_all_db_files(setup_id))
 
         return list(res)
 

@@ -16,6 +16,7 @@ from common_log import create_logger
 
 @dataclass
 class BatchInfo:
+    setup_id: str
     name: str
     date_start: datetime
     date_end: datetime
@@ -29,11 +30,30 @@ class DataService:
 
     def __init__(self, data_dir: str):
         self.logger = create_logger(self)
-        self.result_dir = Path(data_dir)
+        self.data_dir = Path(data_dir)
+
+    def _get_all_batches_dir(self) -> List[Path]:
+        xp_folder = filter(lambda elem: elem.is_dir(), self.data_dir.glob("*/*"))
+        return list(xp_folder)
+
+    def _get_batch_dir(self, batch_name: str) -> Path:
+        # search for directory
+        xp_folder = self._get_all_batches_dir()
+        res = list(filter(lambda batch_dir: batch_dir.name == batch_name, xp_folder))
+
+        if len(res) == 0:
+            return None
+        else:
+            return res[0]
+
+
 
     def get_batch_info(self, batch_name: str):
 
         df = self.get_raw_df(batch_name)
+
+        batch_folder = self._get_batch_dir(batch_name)
+        setup_id = batch_folder.parent.name
 
         try:
             date_start = df['time'].iloc[0]
@@ -43,15 +63,14 @@ class DataService:
             self.logger.error(err_msg)
             raise IndexError(err_msg, e)
 
-
-        return BatchInfo(batch_name, date_start, date_end)
+        return BatchInfo(setup_id, batch_name, date_start, date_end)
 
     def get_batches(self) -> List[BatchInfo]:
 
-        data_dir = self.result_dir
+        data_dir = self.data_dir
 
         # get first level folder
-        xp_folder = filter(lambda elem: elem.is_dir(), data_dir.glob("*"))
+        xp_folder = self._get_all_batches_dir()
         xp_names = map(lambda elem: elem.name, xp_folder)
 
         res = map(lambda x: self.get_batch_info(x), xp_names)
@@ -60,9 +79,9 @@ class DataService:
 
     def get_raw_df(self, batch_name: str) -> DataFrame:
 
-        data_dir = self.result_dir / batch_name
+        data_dir = self._get_batch_dir(batch_name)
 
-        if not data_dir.exists():
+        if data_dir is None:
             err_msg = f"Batch '{batch_name}' does not exist"
             raise Exception(err_msg)
 

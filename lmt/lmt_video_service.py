@@ -45,9 +45,9 @@ class LMTVideoService:
         self.video_dir = Path(video_dir)
 
 
-    def _get_all_video_files(self) -> List[Path]:
+    def _get_all_video_files(self, setup_id: str) -> List[Path]:
 
-        res = list(self.video_dir.glob('**/*.mp4'))
+        res = list(self.video_dir.glob(f'{setup_id}/**/*.mp4'))
 
         self.logger.info(f"{len(res)} videos files found")
 
@@ -55,11 +55,11 @@ class LMTVideoService:
 
 
 
-    def get_videos_info(self) -> List[VideoInfo]:
+    def get_videos_info(self, setup_id: str) -> List[VideoInfo]:
 
-        self.logger.info(f"Getting Videos infos in directory '{self.video_dir}'")
+        self.logger.info(f"Getting Videos infos in directory '{self.video_dir}/{setup_id}'")
 
-        res = map(lambda video_path: VideoInfo(video_path), self._get_all_video_files()[::100])
+        res = map(lambda video_path: VideoInfo(video_path), self._get_all_video_files(setup_id))
 
         return list(res)
 

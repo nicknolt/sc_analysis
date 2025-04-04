@@ -6,7 +6,7 @@ from typing import Dict
 
 import pandas as pd
 
-from batch_process import ImportBatch, MiceSequence, OccupationTime
+from batch_process.import_batch import ImportBatch
 from common import FileMerger, ROOT_DIR
 from common_log import basic_config_log
 from container import Container
@@ -167,7 +167,7 @@ class TestModel(unittest.TestCase):
 
     def test_execute_r_script(self):
 
-        output_file = Configuration().result_dir / 'XP11_one_step_seq_LEVER_PRESS_CAMEMBERT.jpg'
+        output_file = Configuration().data_dir / 'XP11_one_step_seq_LEVER_PRESS_CAMEMBERT.jpg'
         p = subprocess.Popen(
             ["Rscript", "--vanilla",
              r"..\scripts_R\ND_LP_camembert.R",

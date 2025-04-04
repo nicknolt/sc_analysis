@@ -68,7 +68,7 @@ class Process:
 
     @inject
     def get_result_dir(self, ds: DataService = Provide[Container.data_service]) -> Path:
-        return ds.result_dir
+        return ds.data_dir
 
     @inject
     def save(self, cache_repo: 'CacheRepository' = Provide[Container.cache_repository]):

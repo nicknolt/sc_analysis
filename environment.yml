@@ -10,3 +10,5 @@ dependencies:
   - pip:
       - dependency-injector==4.*
       - opencv-python==4.*
+      - PyQt5==5.*
+      - python-vlc==3.*

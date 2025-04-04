@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -7,6 +8,7 @@ from dependency_injector.wiring import Provide, inject
 
 from container import Container
 from data_service import DataService, BatchInfo
+from lmt.lmt_db_reader import DBInfo
 from lmt.lmt_service import LMTService
 from process import GlobalProcess
 
@@ -37,12 +39,11 @@ class LMT2BatchLinkProcess(GlobalProcess):
     def dtype(self) -> Dict:
         pass
 
-    def _compute(self) -> pd.DataFrame:
-
-        batch_list: List[BatchInfo] = self.data_service.get_batches()
-        db_list = self.lmt_service.get_db_infos()
+    def _link_by_setup(self, setup_id: str, batch_list: List[BatchInfo]) -> pd.DataFrame:
 
         res_dict: List[Dict] = []
+
+        db_list = self.lmt_service.get_db_infos(setup_id)
 
         for db in db_list:
 
@@ -67,6 +68,51 @@ class LMT2BatchLinkProcess(GlobalProcess):
         df["db_idx"] = df.groupby('batch').cumcount()
 
         return df
+
+    def _compute(self) -> pd.DataFrame:
+
+        batch_list: List[BatchInfo] = self.data_service.get_batches()
+
+        d = defaultdict(list)
+        [d[batch.setup_id].append(batch) for batch in batch_list]
+
+        res_list = []
+        for setup_id, batch_list in d.items():
+
+            # tutu = setup_groups[setup_id]
+
+            res_list.append(self._link_by_setup(setup_id=setup_id, batch_list=batch_list))
+
+        df = pd.concat(res_list)
+
+        return df
+
+
+        # res_dict: List[Dict] = []
+        #
+        # for db in db_list:
+        #
+        #     # res: List[BatchInfo] = list(filter(lambda batchinfo: (batchinfo.date_start <= db.date_start <= batchinfo.date_end) or (batchinfo.date_start <= db.date_end <= batchinfo.date_end), batch_list))
+        #     res: List[BatchInfo] = list(filter(lambda batchinfo: has_overlap(batchinfo.date_start, batchinfo.date_end, db.date_start, db.date_end), batch_list))
+        #
+        #
+        #     dict_entry = {'path': db.path, 'date_start': db.date_start, 'date_end': db.date_end, 'nb_frames': db.nb_frames, 'duration': db.duration, 'batch': ''}
+        #
+        #     if len(res) == 1:
+        #         self.logger.info(f"{db.path.name} is linked with batch: {res[0].name}")
+        #         dict_entry['batch'] = res[0].name
+        #     elif len(res) > 1:
+        #         raise Exception(f"link to more than one batch ({len(res)})")
+        #
+        #     res_dict.append(dict_entry)
+        #
+        # df = pd.DataFrame(res_dict)
+        # df.sort_values(by='date_start', inplace=True)
+        #
+        # # add position inside batch group (to keep the same reference values into the events df)
+        # df["db_idx"] = df.groupby('batch').cumcount()
+        #
+        # return df
 
     def get_db_path(self, batch_name: str, date: datetime = None, db_idx: int = None) -> Tuple[Path, int]:
 

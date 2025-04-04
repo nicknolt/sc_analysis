@@ -24,6 +24,10 @@ class DBInfo:
     def duration(self) -> float:
         return (self.date_end - self.date_start).total_seconds() / 60 / 60 / 24
 
+    @property
+    def setup_id(self) -> str:
+        return self.path.parent.name
+
 class LMTDBException(Exception):
 
     class ExceptionType(Enum):
@@ -48,6 +52,10 @@ class LMTDBReader:
         self.db_path: Path = db_path
 
         self._connexion: sqlite3.Connection = None
+
+    @property
+    def setup_id(self) -> str:
+        return self.db_path.parent.name
 
     @property
     def connexion(self) -> sqlite3.Connection:

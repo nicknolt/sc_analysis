@@ -13,6 +13,7 @@ from container import Container
 from data_service import DataService
 from lmt.lmt_db_reader import LMTDBReader
 from lmt.lmt_service import LMTService
+from lmt.video2batch_link_process import Video2BatchLinkProcess
 from process import BatchProcess
 
 
@@ -169,19 +170,22 @@ class ImportBatch(BatchProcess):
 
         MiceLocation(batch_name=self.batch_name).compute(force_recompute=True)
 
-        # self._add_db_frame_info()
+        # self._add_video_frame_info()
         # self.save()
-        #
-        # df = self._add_lmt_loc()
+
+        self._add_db_frame_info()
+        self.save()
+
+        df = self._add_lmt_loc()
 
         return df
 
     def _add_lmt_loc(self) -> pd.DataFrame:
 
-        self.logger.error("!!remove iloc!!!")
-        df = self._df.iloc[::500, :]
+        # self.logger.error("!!remove iloc!!!")
+        # df = self._df.iloc[::500, :]
 
-        # df = self._df
+        df = self._df
 
         df[['lmt_rfid', 'lmt_db_frame', 'lmt_date', 'db_error']] = None
 
@@ -227,11 +231,23 @@ class ImportBatch(BatchProcess):
 
         return df
 
+    def _add_video_frame_info(self):
+
+        df_video = Video2BatchLinkProcess().df
+        df_video = df_video[df_video["batch"] == self.batch_name]
+
+        res = pd.merge_asof(self.df, df_video, left_on="time", right_on="date_start")
+        res["video_idx"][res["time"] > res["date_end"]] = -1
+
+        self.df["video_idx"] = res["video_idx"]
+
+
     def _add_db_frame_info(self):
 
         df_db = DBEventInfo(batch_name=self.batch_name).df
         self.df[["db_idx", "db_frame"]] = df_db[["db_idx", "db_frame"]]
         print("ok")
+
 
     def _find_transitions_error(self, df: pd.DataFrame):
 

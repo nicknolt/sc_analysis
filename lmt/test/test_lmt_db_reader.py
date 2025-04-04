@@ -4,6 +4,8 @@ import subprocess
 import unittest
 from datetime import datetime, timedelta
 from io import StringIO
+from itertools import groupby
+from operator import itemgetter
 from pathlib import Path
 
 import matplotlib
@@ -14,6 +16,7 @@ from batch_process.import_batch import ImportBatch
 from common import ROOT_DIR
 from common_log import basic_config_log
 from container import Container
+from lmt.lmt2batch_link_process import LMT2BatchLinkProcess
 from lmt.lmt_db_reader import DBInfo
 
 matplotlib.use('Qt5Agg')
@@ -28,7 +31,24 @@ class TestLMTDBReader(unittest.TestCase):
         basic_config_log(level=logging.DEBUG)
         logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
-    
+    def test_LMT2BatchLinkProcess(self):
+        # res = container.data_service().get_batches()
+        #
+        # tutu = {batch.setup_id: batch for batch in res}
+
+
+
+
+        p = LMT2BatchLinkProcess().compute(force_recompute=True)
+        print('ok')
+
+
+    def test_get_all_db_files(self):
+        lmt_service = container.lmt_service()
+        res = lmt_service.get_db_infos("SC2")
+
+        print("ok")
+
     def test_process_all(self):
         date_service = container.data_service()
 

@@ -4,8 +4,6 @@ import subprocess
 import unittest
 from datetime import datetime, timedelta
 from io import StringIO
-from itertools import groupby
-from operator import itemgetter
 from pathlib import Path
 
 import matplotlib
@@ -31,17 +29,16 @@ class TestLMTDBReader(unittest.TestCase):
         basic_config_log(level=logging.DEBUG)
         logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
+
     def test_LMT2BatchLinkProcess(self):
-        # res = container.data_service().get_batches()
-        #
-        # tutu = {batch.setup_id: batch for batch in res}
+
+        path_str = "//192.168.25.175/souriscity/SourisCity2.0/LMT_DATA/SC1/Experience4/Experience6mice3LMT_0_4/2023_07_05/2023_07_05.sqlite"
+        path = Path(path_str)
+        tutu = path.relative_to(path.drive)
 
 
-
-
-        p = LMT2BatchLinkProcess().compute(force_recompute=True)
-        print('ok')
-
+        # res = LMT2BatchLinkProcess().compute(force_recompute=True)
+        print("ok")
 
     def test_get_all_db_files(self):
         lmt_service = container.lmt_service()
@@ -57,21 +54,10 @@ class TestLMTDBReader(unittest.TestCase):
 
         print("ok")
 
-    def test_tmp(self):
-        # res = DBEventInfo(batch_name="XP5").compute(force_recompute=True)
-        # print("ok")
-        df = ImportBatch(batch_name="XP5").df
+    def test_lmt_service(self):
+        lmt_service = container.lmt_service()
 
-        df["lmt_rfid"].fillna("0", inplace=True)
-        df2 = df[df["action"].isin(['id_lever', 'nose_poke'])]
-
-        df2 = df2[df2.rfid != df2.lmt_rfid]
-
-        other_col = set(df2.columns.values) - {'rfid', 'lmt_rfid'}
-
-        df2 = df2[list({'rfid', 'lmt_rfid'}) + list(other_col)]
-        df2.to_csv("kikoo.csv")
-
+        res = lmt_service.get_db_infos("SC1")
         print("ok")
 
 

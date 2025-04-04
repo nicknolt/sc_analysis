@@ -1,5 +1,6 @@
 import subprocess
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 import vlc
@@ -35,6 +36,7 @@ class LMTVideoReader:
 
         delta_t = (date - video_info.date_start).total_seconds()
 
+        path = Path(video_info.path)
         # player: MediaPlayer = vlc.MediaPlayer(video_info.path)
         # player.play()
 

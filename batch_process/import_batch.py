@@ -231,15 +231,15 @@ class ImportBatch(BatchProcess):
 
         return df
 
-    def _add_video_frame_info(self):
-
-        df_video = Video2BatchLinkProcess().df
-        df_video = df_video[df_video["batch"] == self.batch_name]
-
-        res = pd.merge_asof(self.df, df_video, left_on="time", right_on="date_start")
-        res["video_idx"][res["time"] > res["date_end"]] = -1
-
-        self.df["video_idx"] = res["video_idx"]
+    # def _add_video_frame_info(self):
+    #
+    #     df_video = Video2BatchLinkProcess().df
+    #     df_video = df_video[df_video["batch"] == self.batch_name]
+    #
+    #     res = pd.merge_asof(self.df, df_video, left_on="time", right_on="date_start")
+    #     res["video_idx"][res["time"] > res["date_end"]] = -1
+    #
+    #     self.df["video_idx"] = res["video_idx"]
 
 
     def _add_db_frame_info(self):

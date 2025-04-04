@@ -32,12 +32,13 @@ class TestLMTDBReader(unittest.TestCase):
 
     def test_LMT2BatchLinkProcess(self):
 
-        path_str = "//192.168.25.175/souriscity/SourisCity2.0/LMT_DATA/SC1/Experience4/Experience6mice3LMT_0_4/2023_07_05/2023_07_05.sqlite"
-        path = Path(path_str)
-        tutu = path.relative_to(path.drive)
+        # lmt_service = container.lmt_service()
+        # path_str = "//192.168.25.175/souriscity/SourisCity2.0/LMT_DATA/SC1/Experience4/Experience6mice3LMT_0_4/2023_07_05/2023_07_05.sqlite"
+        # path = Path(path_str)
+        # tutu = path.relative_to(lmt_service.lmt_dir)
 
 
-        # res = LMT2BatchLinkProcess().compute(force_recompute=True)
+        res = LMT2BatchLinkProcess().compute(force_recompute=True)
         print("ok")
 
     def test_get_all_db_files(self):

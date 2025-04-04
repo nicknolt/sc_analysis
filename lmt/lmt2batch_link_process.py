@@ -50,8 +50,9 @@ class LMT2BatchLinkProcess(GlobalProcess):
             # res: List[BatchInfo] = list(filter(lambda batchinfo: (batchinfo.date_start <= db.date_start <= batchinfo.date_end) or (batchinfo.date_start <= db.date_end <= batchinfo.date_end), batch_list))
             res: List[BatchInfo] = list(filter(lambda batchinfo: has_overlap(batchinfo.date_start, batchinfo.date_end, db.date_start, db.date_end), batch_list))
 
-
-            dict_entry = {'path': db.path, 'date_start': db.date_start, 'date_end': db.date_end, 'nb_frames': db.nb_frames, 'duration': db.duration, 'batch': ''}
+            # relative to drive
+            rel_path = Path(db.path).relative_to(self.lmt_service.lmt_dir)
+            dict_entry = {'path': rel_path, 'date_start': db.date_start, 'date_end': db.date_end, 'nb_frames': db.nb_frames, 'duration': db.duration, 'batch': ''}
 
             if len(res) == 1:
                 self.logger.info(f"{db.path.name} is linked with batch: {res[0].name}")
@@ -87,33 +88,6 @@ class LMT2BatchLinkProcess(GlobalProcess):
 
         return df
 
-
-        # res_dict: List[Dict] = []
-        #
-        # for db in db_list:
-        #
-        #     # res: List[BatchInfo] = list(filter(lambda batchinfo: (batchinfo.date_start <= db.date_start <= batchinfo.date_end) or (batchinfo.date_start <= db.date_end <= batchinfo.date_end), batch_list))
-        #     res: List[BatchInfo] = list(filter(lambda batchinfo: has_overlap(batchinfo.date_start, batchinfo.date_end, db.date_start, db.date_end), batch_list))
-        #
-        #
-        #     dict_entry = {'path': db.path, 'date_start': db.date_start, 'date_end': db.date_end, 'nb_frames': db.nb_frames, 'duration': db.duration, 'batch': ''}
-        #
-        #     if len(res) == 1:
-        #         self.logger.info(f"{db.path.name} is linked with batch: {res[0].name}")
-        #         dict_entry['batch'] = res[0].name
-        #     elif len(res) > 1:
-        #         raise Exception(f"link to more than one batch ({len(res)})")
-        #
-        #     res_dict.append(dict_entry)
-        #
-        # df = pd.DataFrame(res_dict)
-        # df.sort_values(by='date_start', inplace=True)
-        #
-        # # add position inside batch group (to keep the same reference values into the events df)
-        # df["db_idx"] = df.groupby('batch').cumcount()
-        #
-        # return df
-
     def get_db_path(self, batch_name: str, date: datetime = None, db_idx: int = None) -> Tuple[Path, int]:
 
         df = self.df
@@ -126,7 +100,11 @@ class LMT2BatchLinkProcess(GlobalProcess):
             res = df[(df['batch'] == batch_name) & (df.db_idx == db_idx)]
 
         if len(res) == 1:
-            return Path(res.iloc[0].path), res.iloc[0].db_idx
+            # to construct the path for both unix and win
+            self.logger.info("SOMETHING TO DO HERE WIN UNIX like Path resolve?")
+            full_path = self.lmt_service.lmt_dir / Path(res.iloc[0].path)
+
+            return full_path, res.iloc[0].db_idx
 
         return None, None
 

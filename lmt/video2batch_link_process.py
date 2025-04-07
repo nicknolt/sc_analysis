@@ -14,6 +14,7 @@ from lmt.lmt_service import LMTService
 from lmt.lmt_video_service import LMTVideoService, VideoInfo
 from process import GlobalProcess
 
+import os
 
 class Video2BatchLinkProcess(GlobalProcess):
 
@@ -42,9 +43,11 @@ class Video2BatchLinkProcess(GlobalProcess):
 
             # # res: List[BatchInfo] = list(filter(lambda batchinfo: (batchinfo.date_start <= db.date_start <= batchinfo.date_end) or (batchinfo.date_start <= db.date_end <= batchinfo.date_end), batch_list))
             res: List[BatchInfo] = list(filter(lambda batchinfo: has_overlap(batchinfo.date_start, batchinfo.date_end, video.date_start, video.date_end), batch_list))
-            #
-            #
-            dict_entry = {'path': video.path, 'date_start': video.date_start, 'date_end': video.date_end, 'duration': video.duration, 'batch': ''}
+
+            # relative to drive
+            rel_path = Path(video.path).relative_to(self.video_service.video_dir)
+
+            dict_entry = {'path': rel_path, 'date_start': video.date_start, 'date_end': video.date_end, 'duration': video.duration, 'batch': ''}
 
             if len(res) == 1:
                 self.logger.info(f"{video.path.name} is linked with batch: {res[0].name}")
@@ -80,7 +83,7 @@ class Video2BatchLinkProcess(GlobalProcess):
         return res
 
 
-    def get_db_path(self, batch_name: str, date: datetime = None, db_idx: int = None) -> Tuple[Path, int]:
+    def get_video_row(self, batch_name: str, date: datetime = None) -> pd.Series:
 
         df = self.df
         res = None
@@ -88,11 +91,18 @@ class Video2BatchLinkProcess(GlobalProcess):
         if date is not None:
             res = df[(df['batch'] == batch_name) & (df.date_start <= date) & (date <= df.date_end)]
 
-        if db_idx is not None:
-            res = df[(df['batch'] == batch_name) & (df.db_idx == db_idx)]
-
         if len(res) == 1:
-            return Path(res.iloc[0].path), res.iloc[0].db_idx
+            return res.iloc[0]
+
+        return None
+
+    def get_video_path(self, batch_name: str, date: datetime = None) -> Tuple[Path, pd.Series]:
+
+        row = self.get_video_row(batch_name=batch_name, date=date)
+
+        if row is not None:
+            full_path = (self.video_service.video_dir / Path(row.path)).resolve()
+            return full_path, row
 
         return None, None
 

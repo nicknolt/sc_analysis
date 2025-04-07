@@ -101,8 +101,8 @@ class LMT2BatchLinkProcess(GlobalProcess):
 
         if len(res) == 1:
             # to construct the path for both unix and win
-            self.logger.info("SOMETHING TO DO HERE WIN UNIX like Path resolve?")
-            full_path = self.lmt_service.lmt_dir / Path(res.iloc[0].path)
+            # self.logger.info("SOMETHING TO DO HERE WIN UNIX like Path resolve?")
+            full_path = (self.lmt_service.lmt_dir / Path(res.iloc[0].path)).resolve()
 
             return full_path, res.iloc[0].db_idx
 

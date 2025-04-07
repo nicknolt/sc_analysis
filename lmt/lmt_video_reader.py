@@ -22,27 +22,20 @@ class LMTVideoReader:
 
     def play_by_date(self, date: datetime, play_before: int = 1):
 
-        df_video = Video2BatchLinkProcess().df
-        df_video = df_video[df_video["batch"] == self.batch_name]
+        p = Video2BatchLinkProcess()
+        df_video = p.df
 
-        res = df_video[(df_video["date_start"] <= date) & (df_video["date_end"] >= date)]
+        video_path, video_row = p.get_video_path(batch_name=self.batch_name, date=date)
 
-        if len(res) == 0:
-            err_msg = f"No videos found for date '{date}' and batch '{self.batch_name}'"
-            self.logger.warning(err_msg)
-            return
 
-        video_info = res.iloc[0]
+        delta_t = (date - video_row.date_start).total_seconds()
+        #
+        # path = (self.lmt_service.lmt_dir / Path(res.iloc[0].path)).resolve()
 
-        delta_t = (date - video_info.date_start).total_seconds()
 
-        path = Path(video_info.path)
-        # player: MediaPlayer = vlc.MediaPlayer(video_info.path)
-        # player.play()
+        cmd = f"""vlc --start-time={delta_t-play_before} {video_path} """
 
-        cmd = f"""vlc --start-time={delta_t-play_before} {video_info.path} """
-
-        self.logger.info(f"Play at {date - timedelta(seconds=play_before)} s in file {video_info.path}")
+        self.logger.info(f"Play at {date - timedelta(seconds=play_before)} s in file {video_path}")
 
         returned_value = subprocess.call(cmd, shell=True)
 

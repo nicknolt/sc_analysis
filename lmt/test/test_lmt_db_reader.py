@@ -16,11 +16,14 @@ from common_log import basic_config_log
 from container import Container
 from lmt.lmt2batch_link_process import LMT2BatchLinkProcess
 from lmt.lmt_db_reader import DBInfo
+from lmt.video2batch_link_process import Video2BatchLinkProcess
 
 matplotlib.use('Qt5Agg')
 
 container = Container()
 container.config.from_ini(ROOT_DIR / "tests/resources/config.ini")
+
+import pandas as pd
 
 class TestLMTDBReader(unittest.TestCase):
 
@@ -29,6 +32,21 @@ class TestLMTDBReader(unittest.TestCase):
         basic_config_log(level=logging.DEBUG)
         logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
+    def test_correct_video2batch(self):
+        df = Video2BatchLinkProcess().df
+        vs = container.video_service()
+        def change_path(row: pd.Series):
+            old_path = Path(row.path)
+            rel_path = old_path.relative_to(vs.video_dir)
+            row['path'] = rel_path
+
+            return row
+
+
+        df2: pd.DataFrame = df.apply(change_path, axis=1)
+
+        df2.to_csv("./video2batch.csv")
+        print("ok")
 
     def test_LMT2BatchLinkProcess(self):
 
@@ -40,10 +58,25 @@ class TestLMTDBReader(unittest.TestCase):
 
         res = LMT2BatchLinkProcess().compute(force_recompute=True)
         print("ok")
+    def test_SC6(self):
+        df = ImportBatch("XP6").df
+        df2 = df[['action', 'device', 'rfid', 'lmt_rfid', 'db_error']][(df["rfid"] != df["lmt_rfid"]) & (df['action'] != "transition")]
+
+        print('ok')
+
+
+
 
     def test_get_all_db_files(self):
         lmt_service = container.lmt_service()
         res = lmt_service.get_db_infos("SC2")
+
+        print("ok")
+
+    def test_process_batch(self):
+        batch_name = "XP6"
+        df = ImportBatch(batch_name=batch_name).df
+
 
         print("ok")
 

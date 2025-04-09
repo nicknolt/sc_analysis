@@ -30,9 +30,10 @@ class TestLMTVideoService(unittest.TestCase):
         date = datetime.fromisoformat(date_str).astimezone(pytz.timezone("Europe/Paris"))
         reader.play_by_date(date=date)
 
+
     def test_LMTVideoReader_by_event(self):
         reader = LMTVideoReader("XP6")
-        reader.play_by_event(37981)
+        reader.play_by_event(124428)
 
 
 

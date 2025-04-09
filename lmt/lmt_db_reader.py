@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple, List, Dict
 
 import pandas as pd
 import pandas.errors
@@ -275,12 +275,12 @@ class LMTDBReader:
             return None, None
 
 
-    def get_corresponding_frame_number(self, date_list: List[datetime]) -> List[int]:
+    def get_corresponding_frame_number(self, date_list: List[datetime]) -> pd.DataFrame:
 
         frame_number = 1
         frame_date = self.date_start
 
-        res: List[int] = list()
+        res: List[Dict] = list()
 
         nb_frames = len(date_list)
 
@@ -300,10 +300,19 @@ class LMTDBReader:
                     frame_date = res_date
                     break
 
-            res.append(frame_number)
+            delta_t = (date - frame_date).total_seconds()
+
+            entry = {
+                'db_frame': frame_number,
+                'db_delta': delta_t
+            }
+
+            res.append(entry)
+
+            # res.append((frame_number, delta_t))
 
         self.close()
 
-        return res
+        return pd.DataFrame(res)
 
 

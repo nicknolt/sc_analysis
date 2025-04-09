@@ -27,6 +27,9 @@ class LMTVideoReader:
 
         video_path, video_row = p.get_video_path(batch_name=self.batch_name, date=date)
 
+        if video_path is None:
+            err_msg = f"There is no video at this date '{date}' for batch:{self.batch_name}"
+            raise Exception(err_msg)
 
         delta_t = (date - video_row.date_start).total_seconds()
         #

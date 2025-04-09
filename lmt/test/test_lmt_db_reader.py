@@ -32,20 +32,12 @@ class TestLMTDBReader(unittest.TestCase):
         basic_config_log(level=logging.DEBUG)
         logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
-    def test_correct_video2batch(self):
-        df = Video2BatchLinkProcess().df
-        vs = container.video_service()
-        def change_path(row: pd.Series):
-            old_path = Path(row.path)
-            rel_path = old_path.relative_to(vs.video_dir)
-            row['path'] = rel_path
 
-            return row
+    def test_tmp_frame_number(self):
+        date_str = "2023-11-10 01:45:37+01:00"
 
+        lmt_reader = container.lmt_service().get_lmt_reader("XP6", datetime.fromisoformat(date_str))
 
-        df2: pd.DataFrame = df.apply(change_path, axis=1)
-
-        df2.to_csv("./video2batch.csv")
         print("ok")
 
     def test_LMT2BatchLinkProcess(self):
@@ -58,10 +50,14 @@ class TestLMTDBReader(unittest.TestCase):
 
         res = LMT2BatchLinkProcess().compute(force_recompute=True)
         print("ok")
+
+
     def test_SC6(self):
         df = ImportBatch("XP6").df
-        df2 = df[['action', 'device', 'rfid', 'lmt_rfid', 'db_error']][(df["rfid"] != df["lmt_rfid"]) & (df['action'] != "transition")]
 
+        tutu = df.db_error.unique()
+        # df2 = df[['action', 'device', 'rfid', 'lmt_rfid', 'time', 'db_error']][(df["rfid"] != df["lmt_rfid"]) & (~df['action'].isin(["transition", "feeder"]))]
+        # df2.to_csv("rfid.csv")
         print('ok')
 
 

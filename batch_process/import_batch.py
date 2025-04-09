@@ -16,6 +16,7 @@ from lmt.lmt_service import LMTService
 from lmt.video2batch_link_process import Video2BatchLinkProcess
 from process import BatchProcess
 
+pd.options.mode.copy_on_write = True
 
 class TransitionResolver:
 
@@ -149,10 +150,16 @@ class ImportBatch(BatchProcess):
     def result_id(self) -> str:
         return f"{self.batch_name}_events"
 
+
+    def update(self, process: 'Process'):
+        df = process.df
+        self.df.update(df)
+        self.save()
+
     def _compute(self) -> pd.DataFrame:
 
         df = self._data_service.get_raw_df(batch_name=self.batch_name)
-
+        df['error'] = ''
         self._find_transitions_error(df)
 
         # temporary save the process before correction
@@ -185,9 +192,9 @@ class ImportBatch(BatchProcess):
         # self.logger.error("!!remove iloc!!!")
         # df = self._df.iloc[::500, :]
 
-        df = self._df
+        df = self.df
 
-        df[['lmt_rfid', 'lmt_db_frame', 'lmt_date', 'db_error']] = None
+        df[['lmt_rfid', 'lmt_db_frame', 'lmt_date']] = ""
 
         events = ["nose_poke", "id_lever"]
         location = None
@@ -245,8 +252,7 @@ class ImportBatch(BatchProcess):
     def _add_db_frame_info(self):
 
         df_db = DBEventInfo(batch_name=self.batch_name).df
-        self.df[["db_idx", "db_frame"]] = df_db[["db_idx", "db_frame"]]
-        print("ok")
+        self.df[["db_idx", "db_frame", "db_error"]] = df_db[["db_idx", "db_frame", "db_error"]]
 
 
     def _find_transitions_error(self, df: pd.DataFrame):
@@ -525,24 +531,34 @@ class DBEventInfo(BatchProcess):
 
 
         df["db_idx"] = df.apply(get_db_idx, axis=1)
+        df.loc[df["db_idx"].isna(), ['db_idx', 'db_error']] = -1, "NO_DB"
+
 
         return df
 
     def _add_db_frame(self, df: pd.DataFrame, lmt_service: LMTService = Provide[Container.lmt_service]) -> pd.DataFrame:
 
-        df["db_frame"] = None
+        df[["db_frame", "db_delta"]] = ""
 
         groups = dict(tuple(df.groupby("db_idx")))
 
         for db_idx, rows in groups.items():
+
+            # skip rows without db
+            if db_idx == -1:
+                continue
+
             self.logger.debug(f"db_idx {db_idx}")
 
             lmt_reader, db_idx = lmt_service.get_lmt_reader(batch_name=self.batch_name, db_idx=db_idx)
-            res = lmt_reader.get_corresponding_frame_number(date_list=rows["time"].tolist())
-            df_res = pd.DataFrame(data=res, columns=['db_frame'])
-            df_res.index = rows.index
 
-            df.update(df_res)
+            res_frame = lmt_reader.get_corresponding_frame_number(date_list=rows["time"].tolist())
+            res_frame['db_error'] = np.where(abs(res_frame['db_delta']) > 1, "LMT_FREEZE", "")
+            # res_frame['db_error'] = df['db_delta'].apply(lambda x: '1000' if x=='Spark' else 1000)
+            # df_res = pd.DataFrame(data=[res_frame['db_frame'], res_frame['db_delta']], columns=['db_frame', 'db_delta'])
+            res_frame.index = rows.index
+
+            df.update(res_frame)
 
         return df
 
@@ -559,4 +575,4 @@ class DBEventInfo(BatchProcess):
         df_event = self._add_db_idx(df_event)
         df_event = self._add_db_frame(df_event)
 
-        return df_event[["db_idx", "db_frame"]]
+        return df_event[["db_idx", "db_frame", "db_error"]]
